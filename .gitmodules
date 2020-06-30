@@ -2,3 +2,7 @@
 	path = realsense
 	url = https://github.com/StanfordASL/realsense
 	branch = kinetic-devel
+[submodule "Firmware"]
+	path = Firmware
+	url = https://github.com/StanfordASl/Firmware
+	branch = covid
