@@ -1,11 +1,15 @@
+pip3 install --user packaging
 
 mkdir -p ~/src/
-cd ~/src
-git clone https://www.github.com/StanfordASL/Firmware
-cd Firmware
-no_sim=1 make px4_sitl_default gazebo
+git clone https://www.github.com/StanfordASL/Firmware ~/src/Firmware
+cd ~/src/Firmware
+git checkout covid --recurse-submodules
+make px4_sitl_default gazebo DONT_RUN=1
 
-source ~/catkin_ws/src/covid/ubuntu_sim_ros_melodic.sh
+source ~/catkin_ws/src/covid/setup/realsense_setup.sh
+
+source ~/catkin_ws/src/covid/setup/ubuntu_sim_ros_melodic.sh
+cd ~/catkin_ws/src/covid
 
 
 

@@ -1,0 +1,4 @@
+[submodule "realsense"]
+	path = realsense
+	url = https://github.com/StanfordASL/realsense
+	branch = kinetic-devel
