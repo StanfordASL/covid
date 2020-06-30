@@ -1,4 +1,0 @@
-[submodule "Firmware"]
-	path = Firmware
-	url = https://github.com/StanfordASL/Firmware
-	branch = covid
