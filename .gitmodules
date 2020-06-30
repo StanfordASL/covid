@@ -6,3 +6,6 @@
 	path = Firmware
 	url = https://github.com/StanfordASl/Firmware
 	branch = covid
+[submodule "realsense_gazebo_plugin"]
+	path = realsense_gazebo_plugin
+	url = https://github.com/StanfordASL/realsense_gazebo_plugin
