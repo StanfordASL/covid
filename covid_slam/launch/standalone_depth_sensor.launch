@@ -1,0 +1,16 @@
+<?xml version="1.0"?>
+<launch>
+
+  <include file="$(find covid_slam)/launch/gazebo.launch"/>
+
+  <!-- Used to simulate a depth camera based on the kinect plugin. Note the model will fall out of plane you need <gravity>0</gravity in the sdf file -->
+  <!--node name="d435_sensor_spawn" pkg="gazebo_ros" type="spawn_model" respawn="false" output="screen" args="-sdf -file $(find mavlink_sitl_gazebo)/models/depth_camera/depth_camera.sdf -x 0 -y 0 -z 0 -R 0 -P 0 -Y 0 -model d435_sensor"/-->
+
+  <param name="sensor_description" command="$(find xacro)/xacro $(find realsense2_description)/urdf/test_d435_camera.urdf.xacro"/>
+  <node name="spawn_d435_sensor" pkg="gazebo_ros" type="spawn_model" respawn="false" output="screen" args="-urdf -param sensor_description -model my_sensor"/>
+
+  <node name="rviz" pkg="rviz" type="rviz" output="log"/>
+  <node pkg="tf" type="static_transform_publisher" name="world_map_linker" args="0 0 0 0 0 0 world map 100"/>
+  <node pkg="tf" type="static_transform_publisher" name="camera_linker" args="0 0 0 0 0 0 world camera_depth_optical_frame 100"/>
+
+</launch>
