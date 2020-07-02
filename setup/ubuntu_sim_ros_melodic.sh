@@ -96,6 +96,7 @@ if [[ $wget_return_code -ne 0 ]]; then echo "Error downloading 'install_geograph
 sudo bash -c "$install_geo"
 
 ## Build!
+catkin clean
 catkin build
 ## Re-source environment to reflect new packages/build environment
 catkin_ws_source="source ~/catkin_ws/devel/setup.bash"
