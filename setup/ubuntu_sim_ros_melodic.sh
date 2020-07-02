@@ -67,10 +67,10 @@ rosinstall_generator --rosdistro kinetic mavlink | tee /tmp/mavros.rosinstall
 
 ## Build MAVROS
 ### Get source (upstream - released)
-rosinstall_generator --upstream mavros | tee -a /tmp/mavros.rosinstall
+#rosinstall_generator --upstream mavros | tee -a /tmp/mavros.rosinstall
 
 ### Setup workspace & install deps
-wstool merge -t src /tmp/mavros.rosinstall
+#wstool merge -t src /tmp/mavros.rosinstall
 wstool update -t src
 if ! rosdep install --from-paths src --ignore-src -y; then
     # (Use echo to trim leading/trailing whitespaces from the unsupported OS name

@@ -9,3 +9,7 @@
 [submodule "realsense_gazebo_plugin"]
 	path = realsense_gazebo_plugin
 	url = https://github.com/StanfordASL/realsense_gazebo_plugin
+[submodule "mavros"]
+	path = mavros
+	url = https://github.com/StanfordASL/mavros
+    branch = covid
