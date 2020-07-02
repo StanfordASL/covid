@@ -46,9 +46,10 @@
     <!-- gazebo model -->
     <node name="$(anon vehicle_spawn)" pkg="gazebo_ros" type="spawn_model" output="screen" args="-sdf -file $(arg sdf) -model $(arg vehicle) -x $(arg x) -y $(arg y) -z $(arg z) -R $(arg R) -P $(arg P) -Y $(arg Y)"/>
 
-    <arg name="cmd" default="$(find xacro)/xacro $(find px4)/Tools/sitl_gazebo/models/rotors_description/urdf/$(arg vehicle)_base.xacro rotors_description_dir:=$(find px4)/Tools/sitl_gazebo/models/rotors_description mavlink_udp_port:=$(arg mavlink_udp_port) mavlink_tcp_port:=$(arg mavlink_tcp_port) --inorder"/>
+    <arg name="cmd" default="$(find xacro)/xacro $(find px4)/Tools/sitl_gazebo/models/rotors_description/urdf/$(arg vehicle)_base.xacro rotors_description_dir:=$(find px4)/Tools/sitl_gazebo/models/rotors_description mavlink_udp_port:=$(arg mavlink_udp_port) mavlink_tcp_port:=$(arg mavlink_tcp_port)"/>
     <param name= "robot_description" command="$(arg cmd)"/>
-    <node name="holla_holla_drone_where_ya_at" pkg="robot_state_publisher" type="robot_state_publisher"/>
+    <node name="robot_state_publisher" pkg="robot_state_publisher" type="robot_state_publisher"/>
+    <node name="joint_state_publisher" pkg="joint_state_publisher" type="joint_state_publisher"/>
     <node name="rviz" pkg="rviz" type="rviz" output="log"/>
 
 
