@@ -3,9 +3,9 @@
 <robot name="iris_d435" xmlns:xacro="http://ros.org/wiki/xacro">
   <xacro:arg name='rotors_description_dir' default="$(find px4)/Tools/sitl_gazebo/models/rotors_description"/>
   <xacro:include filename="$(arg rotors_description_dir)/urdf/iris_base.xacro" />
-  <xacro:include filename="$(find realsense2_description)/urdf/_d435.urdf.xacro"/>
+  <xacro:include filename="$(find covid_slam)/models/d435_kinect/d435_kinect.xacro"/>
 
-  <xacro:sensor_d435 parent="base_link">
+  <xacro:sensor_d435_kinect parent="base_link">
       <origin xyz="0.15 0 0" rpy="0 0 0"/>
-  </xacro:sensor_d435>
+  </xacro:sensor_d435_kinect>
 </robot>

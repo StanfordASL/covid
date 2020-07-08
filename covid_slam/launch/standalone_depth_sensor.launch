@@ -1,13 +1,17 @@
 <?xml version="1.0"?>
 <launch>
-  <include file="$(find covid_slam)/launch/gazebo.launch"/>
+  <include file="$(find gazebo_ros)/launch/rubble_world.launch">
+  </include>
 
-  <param name="robot_description" command="$(find xacro)/xacro $(find realsense2_description)/urdf/test_d435_camera.urdf.xacro"/>
 
+  <!--param name="robot_description" command="$(find xacro)/xacro $(find realsense2_description)/urdf/test_d435_camera.urdf.xacro"/-->
+
+
+  <param name="robot_description" command="$(find xacro)/xacro $(find covid_slam)/models/d435_kinect/test_d435_kinect.xacro"/>
 
   <!--node name="spawn_d435_sensor" pkg="gazebo_ros" type="spawn_model" respawn="false" output="screen" args="-sdf -file $(find realsense2_description)/urdf/_d435.sdf -model d435_sensor"/-->
 
-  <node name="spawn_d435_sensor" pkg="gazebo_ros" type="spawn_model" respawn="false" output="screen" args="-urdf -param robot_description -model d435_sensor"/>
+  <node name="spawn_d435_sensor" pkg="gazebo_ros" type="spawn_model" respawn="false" output="screen" args="-urdf -param robot_description -model d435_sensor -x -2"/>
   <node name="robot_state_publisher" pkg="robot_state_publisher" type="robot_state_publisher"/>
   <node name="rviz" pkg="rviz" type="rviz" output="log" args="-d $(find realsense2_description)/rviz/urdf.rviz" required="true"/>
 </launch>
