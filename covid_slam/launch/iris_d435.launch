@@ -28,6 +28,7 @@
     <arg     if="$(arg interactive)" name="px4_command_arg1" value=""/>
     <!-- PX4 SITL and Gazebo -->
 
+
     <!-- MAVROS -->
     <include file="$(find covid_slam)/launch/px4.launch">
         <!-- GCS link is provided by SITL -->
@@ -43,6 +44,8 @@
 
     <node name="sitl" pkg="px4" type="px4" output="screen"
         args="$(find px4)/ROMFS/px4fmu_common -s etc/init.d-posix/rcS $(arg px4_command_arg1)" required="true"/>
+
+
 
     <include file="$(find gazebo_ros)/launch/empty_world.launch">
         <arg name="gui" value="$(arg gui)"/>
@@ -60,5 +63,6 @@
 
     <node name="robot_state_publisher" pkg="robot_state_publisher" type="robot_state_publisher"/>
     <node name="joint_state_publisher" pkg="joint_state_publisher" type="joint_state_publisher"/>
-    <node name="rviz" pkg="rviz" type="rviz" output="log"/>
+    <node name="rviz" pkg="rviz" type="rviz" output="log" args="-d $(find covid_slam)/launch/default.rviz"/>
+
 </launch>
