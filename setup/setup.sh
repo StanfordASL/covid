@@ -10,7 +10,7 @@ source ~/catkin_ws/src/covid/setup/realsense_setup.sh
 source ~/catkin_ws/src/covid/setup/ubuntu_sim_ros_melodic.sh
 
 echo "source ~/catkin_ws/devel/setup.bash" >> ~/.bashrc
-echo "~/catkin_ws/src/covid/setup/ros_package.sh" >> ~/.bashrc
+echo "source ~/catkin_ws/src/covid/setup/ros_package.sh" >> ~/.bashrc
 
 source ~/catkin_ws/devel/setup.bash
 source ~/catkin_ws/src/covid/setup/ros_package.sh
