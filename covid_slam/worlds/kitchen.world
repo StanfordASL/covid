@@ -9,6 +9,40 @@
     <include>
       <uri>model://ground_plane</uri>
     </include>
+    <include>
+      <uri>model://asphalt_plane</uri>
+    </include>
+
+    <include>
+      <uri>model://playground</uri>
+      <pose> 0 -2 0 0 0 3.14</pose>
+    </include>
+
+    <include>
+      <uri>model://collapsed_fire_station</uri>
+      <pose> 0 8  0 0 0 0</pose>
+    </include>
+
+
+
+
+
+
+
+    <include>
+      <uri>model://fire_truck</uri>
+      <pose> -6 0 0 0 0 0</pose>
+    </include>
+
+
+
+    <include>
+      <uri>model://collapsed_industrial</uri>
+      <pose> 12 0  0 0 0</pose>
+    </include>
+
+
+
     <physics name='default_physics' default='0' type='ode'>
       <gravity>0 0 -9.8066</gravity>
       <ode>
@@ -30,5 +64,9 @@
       <real_time_update_rate>250</real_time_update_rate>
       <magnetic_field>6.0e-6 2.3e-5 -4.2e-5</magnetic_field>
     </physics>
+
+
+
+
   </world>
 </sdf>

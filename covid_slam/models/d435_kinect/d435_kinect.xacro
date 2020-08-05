@@ -120,7 +120,7 @@ aluminum peripherial evaluation case.
       <sensor name="{name}depth" type="depth">
         <update_rate>20</update_rate>
         <camera name="{name}">
-          <horizontal_fov>${69.4*deg_to_rad}</horizontal_fov>
+            <horizontal_fov>${90*deg_to_rad}</horizontal_fov> <!--69.4-->
           <image>
             <width>480</width>1920
             <height>270</height>1080
@@ -136,7 +136,7 @@ aluminum peripherial evaluation case.
           <alwaysOn>true</alwaysOn>
           <updateRate>20</updateRate>
           <pointCloudCutoff>0.2</pointCloudCutoff>
-          <pointCloudCutoffMax>10</pointCloudCutoffMax>
+          <pointCloudCutoffMax>15</pointCloudCutoffMax>
           <imageTopicName>color/image_raw</imageTopicName>
           <cameraInfoTopicName>color/camera_info</cameraInfoTopicName>
           <depthImageTopicName>depth/color/image_raw</depthImageTopicName>
