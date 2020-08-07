@@ -99,6 +99,7 @@ sudo bash -c "$install_geo"
 catkin clean
 catkin build
 ## Re-source environment to reflect new packages/build environment
+
 catkin_ws_source="source ~/catkin_ws/devel/setup.bash"
 if grep -Fxq "$catkin_ws_source" ~/.bashrc; then echo ROS catkin_ws setup.bash already in .bashrc;
 else echo "$catkin_ws_source" >> ~/.bashrc; fi

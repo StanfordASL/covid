@@ -1,55 +1,51 @@
-sudo apt-get update
-sudo apt-get -y install python3-pip
-sudo apt-get -y install python-pip
-pip3 install --user packaging
-sudo apt-get -y install python-jinja2
-sudo apt-get -y install -y python-empy
-sudo -H pip3 install catkin_pkg
-sudo -H pip3 install numpy
-sudo -H pip install toml
-
-#gazebo
-
-#sudo apg-get -y install libboost-all-dev
-#sudo pip install pyyaml
-#
-#
+#sudo apt-get update
+#source ~/catkin_ws/src/covid/setup/ubuntu_sim_ros_melodic.sh
+#sudo rosdep init
+#rosdep update
 #cd ~/catkin_ws/src/covid/Firmware
 #make clean
-#make px4_sitl_default gazebo DONT_RUN=1
+#make px4_sitl_default gazebo -j8 DONT_RUN=1
 #cd ..
 #
 #mkdir temp && cd temp
 #
 ##Libccd
 #git clone https://github.com/danfis/libccd
-#cd libccd/src
-#make -j8
-#sudo make install
+#cd libccd
+#mkdir build && cd build
+#cmake -G "Unix Makefiles" ..
+#make && sudo make install
 #cd ..
-#
+#sudo apt-get install ros-melodic-octomap
 ##Flexible Collision Library
 #git clone https://github.com/flexible-collision-library/fcl
 #cd fcl
 #mkdir build && cd build
-#cmake ..
+#cmake -DFCL_USE_X64_SSE=OFF ..
 #make -j8
 #sudo make install
 #cd ..
-#sudo apt-get update
-#
+
 ##OMPL
 #wget https://ompl.kavrakilab.org/install-ompl-ubuntu.sh
 #chmod u+x install-ompl-ubuntu.sh
-#sudo source install-ompl-ubuntu.sh
+#sudo bash install-ompl-ubuntu.sh
 #cd ..
 #
 #sudo rm -rf temp
 #
 #
 #source ~/catkin_ws/src/covid/setup/realsense_setup.sh
-#source ~/catkin_ws/src/covid/setup/ubuntu_sim_ros_melodic.sh
-#
+#pip install future
+#sudo apt-get install ros-melodic-geographic-msgs
+#sudo apt-get install ros-melodic-octomap-ros
+#sudo apt-get install libgeographic-dev
+#sudo apt-get install libxslt-dev
+#pip install lxml
+
+#catkin build clean
+#catkin build
+
 #echo "source ~/catkin_ws/devel/setup.bash" >> ~/.bashrc
 #echo "source ~/catkin_ws/src/covid/setup/ros_package.sh" >> ~/.bashrc
 #
