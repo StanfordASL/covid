@@ -9,3 +9,4 @@ mavros
 image_transport_plugins
 .rosinstall*
 VIO
+Firmware
