@@ -3,7 +3,6 @@
 *.swo
 vision_opencv
 rtabmap_ros
-realsense-ros
 find-object
 mavlink
 mavros
