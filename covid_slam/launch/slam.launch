@@ -1,0 +1,47 @@
+<?xml version="1.0"?>
+<launch>
+
+    <!--include file="$(find realsense2_camera)/launch/rs_t265.launch">
+        <arg name="camera" value="t265"/>
+        <arg name="publish_odom_tf" value="true"/>
+    </include-->
+
+    <include file="$(find realsense2_camera)/launch/rs_camera.launch">
+        <arg name="camera"          value="d435i"/>
+        <arg name="device_type"     value="D435I"/>
+        <arg name="align_depth"     value="true"/>
+        <arg name="enable_accel"    value="false"/>
+        <arg name="enable_gyro"     value="false"/>
+    </include>
+
+
+    <group ns="rtabmap">
+
+    <node name="rtabmap_slam" pkg="rtabmap_ros" type="rtabmap" args="--delete_db_on_start">
+      <param name="odom_frame_id" value="t265_odom_frame"/>
+      <param name="odom_tf_angular_variane" value="0.0005"/>
+      <param name="odom_tf_linear_variance" value="0.0001"/>
+      <param name="frame_id" value="t265_link"/>
+      <param name="subscribe_odom_info" value="false"/>
+      <param name="visual_odometry" value="false"/>
+      <param name="map_always_update" value="true"/>
+
+      <remap from="rgb/image"       to="/d435i/color/image_raw"/>
+      <remap from="depth/image"     to="/d435i/aligned_depth_to_color/image_raw"/>
+      <remap from="rgb/camera_info" to="/d435i/color/camera_info"/>
+      <remap from="rgb/camera_info" to="/d435i/aligned_depth_to_color/camera_info"/>
+    </node>
+
+    </group>
+
+
+  <param name="robot_description" command="$(find xacro)/xacro '$(find realsense2_description)/urdf/test_d435_camera.urdf.xacro'"/>
+
+  <node name="robot_state_publisher" pkg="robot_state_publisher" type="robot_state_publisher"/>
+
+
+  <node pkg="tf" type="static_transform_publisher" name="t265_to_d435i" args="0 0 0 0 0 0 t265_link d435i_link 100"/>
+
+  <node name="rviz" pkg="rviz" type="rviz" required="true" args="-d $(find covid_slam)/rviz/slam.rviz"/>
+
+</launch>

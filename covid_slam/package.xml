@@ -58,8 +58,7 @@
   <exec_depend>roscpp</exec_depend>
   <exec_depend>rospy</exec_depend>
   <exec_depend>std_msgs</exec_depend>
-  <build_depend>mavros_msgs</build_depend>
-  <depend>fcl</depend>
+  <!--depend>fcl</depend-->
 
 
   <!-- The export tag contains other, unspecified, tags -->

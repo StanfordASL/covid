@@ -2,6 +2,3 @@
 	path = Firmware
 	url = https://github.com/StanfordASl/Firmware
 	branch = covid
-[submodule "robot_localization"]
-	path = robot_localization
-	url = https://github.com/cra-ros-pkg/robot_localization

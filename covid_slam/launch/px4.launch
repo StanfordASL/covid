@@ -3,13 +3,16 @@
 	<!-- vim: set ft=xml noet : -->
 	<!-- example launch script for PX4 based FCU's -->
 
-	<arg name="fcu_url" default="/dev/ttyACM0:57600" />
-	<arg name="gcs_url" default="" />
-	<arg name="tgt_system" default="1" />
-	<arg name="tgt_component" default="1" />
+	<arg name="asset" default="aslquad1"/>
+	<arg name="server" default="mocap.local"/>
+	<arg name="pose_topic" default="mavros/vision_pose/pose"/>
+	<arg name="fcu_url" default="/dev/ttyUSB0:921600"/>
+	<arg name="gcs_url" default="udp://@localhost" />
 	<arg name="log_output" default="screen" />
 	<arg name="fcu_protocol" default="v2.0" />
 	<arg name="respawn_mavros" default="false" />
+	<arg name="tgt_system" default="1" />
+	<arg name="tgt_component" default="1" />
 
 	<include file="$(find mavros)/launch/node.launch">
 		<arg name="pluginlists_yaml" value="$(find mavros)/launch/px4_pluginlists.yaml" />
@@ -21,5 +24,18 @@
 		<arg name="log_output" value="$(arg log_output)" />
 		<arg name="fcu_protocol" value="$(arg fcu_protocol)" />
 		<arg name="respawn_mavros" default="$(arg respawn_mavros)" />
+		<param name="/mavros/conn/timesync_rate" value="0.1"/>
 	</include>
+	<node pkg="vrpn_client_ros" type="vrpn_tracker_node" name="vrpn_tracker_node" output="screen">
+		<param name="tracker_name" value="$(arg asset)"/>
+		<param name="server" value="$(arg server)"/>
+		<param name="port" value="3883"/>
+		<param name="update_frequency" value="100"/>
+		<param name="use_server_time" value="false"/>
+		<param name="broadcast_tf" value="false"/>
+		<param name="frame_id" value="world"/>
+		<remap from="$(arg asset)/pose" to="$(arg pose_topic)"/>
+	</node>
+
+
 </launch>

@@ -13,6 +13,7 @@
 #include <tf2_ros/transform_listener.h>
 #include <nav_msgs/Odometry.h>
 #include <geometry_msgs/Point.h>
+#include <geometry_msgs/PoseStamped.h>
 
 #include <ompl/config.h>
 /*
@@ -48,33 +49,38 @@ public:
         bounds.setHigh(0, 10);
         bounds.setLow(1, -10);
         bounds.setHigh(1, 10);
-        bounds.setLow(2, 0);
-        bounds.setHigh(2, 10);
+        bounds.setLow(2, -1);
+        bounds.setHigh(2, 1);
         space->as<ob::SE3StateSpace>()->setBounds(bounds);
 
-        ob::ScopedState<ob::SE3StateSpace> goal(space);
-        goal->setXYZ(0,0,1);
-        goal->as<ob::SO3StateSpace::StateType>(1)->setIdentity();
     
 
         si = std::make_shared<ob::SpaceInformation>(space);
         si->setStateValidityChecker(std::bind(&planner::isStateValid, this, std::placeholders::_1));
         pdef = ob::ProblemDefinitionPtr(new ob::ProblemDefinition(si));
-        pdef->setGoalState(goal);
         pdef->setOptimizationObjective(ob::OptimizationObjectivePtr(new ob::PathLengthOptimizationObjective(si)));
     }
 
     ~planner() {}
 
     void plan() {
+        pdef->clearGoal();
+        pdef->clearStartStates();
+
+
         setDronePose();
         ob::ScopedState<ob::SE3StateSpace> start(space);
         start->setXYZ(drone_pose.position.x,
                       drone_pose.position.y,
                       drone_pose.position.z);
 		start->as<ob::SO3StateSpace::StateType>(1)->setIdentity();
-        pdef->clearStartStates();
-        pdef->addStartState(start);
+        ob::ScopedState<ob::SE3StateSpace> goal(space);
+        goal->setXYZ(goal_pose.position.x,
+                      goal_pose.position.y,
+                      goal_pose.position.z);
+		goal->as<ob::SO3StateSpace::StateType>(1)->setIdentity();
+
+        pdef->setStartAndGoalStates(start, goal);
 
         ob::PlannerPtr plan(new og::InformedRRTstar(si));
         plan->setProblemDefinition(pdef);
@@ -83,11 +89,9 @@ public:
 
         if (solved) {
 
-
             visualization_msgs::Marker clear;
             clear.action = visualization_msgs::Marker::DELETEALL;
             vis_pub.publish(clear);
-
 
             og::PathGeometric*  path = pdef->getSolutionPath()->as<og::PathGeometric>();
 			trajectory_msgs::MultiDOFJointTrajectory msg;
@@ -144,10 +148,16 @@ public:
 		map_geom = new_map_geom;
 	}
 
+    void setGoal(const geometry_msgs::PoseStamped &pose_stamped) {
+        goal_pose.position.x = pose_stamped.pose.position.x;
+        goal_pose.position.y = pose_stamped.pose.position.y;
+        goal_pose.position.z = pose_stamped.pose.position.z;
+    }
+
     void setDronePose(void) {
         geometry_msgs::TransformStamped transform_stamped;
         try {
-            transform_stamped = tf_buffer.lookupTransform("map", "base_link", ros::Time(0));
+            transform_stamped = tf_buffer.lookupTransform("map", "t265_link", ros::Time(0));
         } catch (tf2::TransformException &ex) {
             ROS_WARN("%s", ex.what());
             return;
@@ -168,7 +178,7 @@ public:
         ROS_INFO("\nx:%f y:%f z:%f", drone_pose.position.x, drone_pose.position.y, drone_pose.position.z);
         drone_obj.setQuatRotation(fcl::Quaterniond(drone_pose.orientation.w,
                                                    drone_pose.orientation.x,
-                                                   drone_pose.orientation.y,
+                                                  drone_pose.orientation.y,
                                                    drone_pose.orientation.z));
         drone_obj.setTranslation(fcl::Vector3d(drone_pose.position.x,
                                                drone_pose.position.y,
@@ -188,6 +198,7 @@ private:
     tf2_ros::Buffer tf_buffer;
     tf2_ros::TransformListener* tf_listener;
     geometry_msgs::Pose drone_pose;
+    geometry_msgs::Pose goal_pose;
 
     ob::StateSpacePtr space;
     ob::SpaceInformationPtr si;
@@ -223,6 +234,11 @@ void octomapCallback(const octomap_msgs::Octomap::ConstPtr &msg, planner* planne
     planner_ptr->setMap(std::shared_ptr<fcl::CollisionGeometryd>(fcl_tree));
 }
 
+void goalCallback(const geometry_msgs::PoseStamped::ConstPtr &pose_stamped, planner* planner_ptr)
+{
+    planner_ptr->setGoal(*pose_stamped);
+}
+
 int main(int argc, char **argv) {
 
     //auto si(std::make_shared<ob::SpaceInformation>(space));
@@ -231,6 +247,7 @@ int main(int argc, char **argv) {
     ros::NodeHandle nh;
     planner planner_object;
 	ros::Subscriber octree_sub = nh.subscribe<octomap_msgs::Octomap>("/rtabmap/octomap_binary", 1, boost::bind(&octomapCallback, _1, &planner_object)); 
+    ros::Subscriber goal_sub = nh.subscribe<geometry_msgs::PoseStamped>("/move_base_simple/goal", 1, boost::bind(&goalCallback, _1, &planner_object));
 
     vis_pub = nh.advertise<visualization_msgs::Marker>( "visualization_marker", 0 );
     traj_pub = nh.advertise<trajectory_msgs::MultiDOFJointTrajectory>("waypoints",1);
