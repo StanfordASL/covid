@@ -1,0 +1,17 @@
+<?xml version="1.0"?>
+<launch>
+  <include>
+
+
+    <param name="robot_description" command="$(find xacro)/xacro '$(find realsense2_description)/urdf/test_d435_camera.urdf.xacro'"/>
+
+    <node name="robot_state_publisher" pkg="robot_state_publisher" type="robot_state_publisher"/>
+
+
+    <node pkg="tf" type="static_transform_publisher" name="t265_to_d435i" args="0 0 0 0 0 0 t265_link d435i_link 100"/>
+
+    <node name="rviz" pkg="rviz" type="rviz" required="true" args="-d $(find covid_slam)/rviz/slam.rviz"/>
+
+  </include>
+
+</launch>
