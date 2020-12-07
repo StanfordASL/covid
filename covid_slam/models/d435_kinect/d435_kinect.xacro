@@ -11,7 +11,7 @@ aluminum peripherial evaluation case.
 <robot name="d435_kinect" xmlns:xacro="http://ros.org/wiki/xacro">
   <!--File includes-->
 
-  <xacro:macro name="sensor_d435_kinect" params="name:=camera topics_ns:=camera parent *origin">
+  <xacro:macro name="sensor_d435_kinect" params="name:=d435i topics_ns:=camera parent *origin">
     <xacro:property name="M_PI" value="3.1415926535897931" />
   
     <!-- The following values are approximate, and the camera node

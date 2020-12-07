@@ -26,7 +26,7 @@
 		<arg name="respawn_mavros" default="$(arg respawn_mavros)" />
 		<param name="/mavros/conn/timesync_rate" value="0.1"/>
 	</include>
-	<node pkg="vrpn_client_ros" type="vrpn_tracker_node" name="vrpn_tracker_node" output="screen">
+	<!--node pkg="vrpn_client_ros" type="vrpn_tracker_node" name="vrpn_tracker_node" output="screen">
 		<param name="tracker_name" value="$(arg asset)"/>
 		<param name="server" value="$(arg server)"/>
 		<param name="port" value="3883"/>
@@ -35,7 +35,7 @@
 		<param name="broadcast_tf" value="false"/>
 		<param name="frame_id" value="world"/>
 		<remap from="$(arg asset)/pose" to="$(arg pose_topic)"/>
-	</node>
+	</node-->
 
 
 </launch>

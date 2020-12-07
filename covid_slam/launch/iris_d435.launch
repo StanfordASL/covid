@@ -14,7 +14,7 @@
     <arg name="vehicle" default="iris"/>
     <arg name="world" default="$(find covid_slam)/worlds/kitchen.world"/>
     <!-- gazebo configs -->
-    <arg name="gui" default="true"/>
+    <arg name="gui" default="false"/>
     <arg name="debug" default="false"/>
     <arg name="verbose" default="false"/>
     <arg name="paused" default="false"/>
@@ -63,6 +63,6 @@
 
     <node name="robot_state_publisher" pkg="robot_state_publisher" type="robot_state_publisher"/>
     <node name="joint_state_publisher" pkg="joint_state_publisher" type="joint_state_publisher"/>
-    <node name="rviz" pkg="rviz" type="rviz" output="log" args="-d $(find covid_slam)/launch/default.rviz"/>
+    <node name="rviz" pkg="rviz" type="rviz" output="log" args="-d $(find covid_slam)/launch/quad.rviz"/>
 
 </launch>
