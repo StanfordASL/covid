@@ -1,0 +1,24 @@
+<?xml version="1.0"?>
+<robot name="quad" xmlns:xacro="http://ros.org/wiki/xacro">
+
+  <link name="base_link">
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+          <mesh filename="package://covid_slam/models/quad/iris.stl"
+                scale="1 1 1"/>
+      </geometry>
+    </visual>
+  </link>
+
+
+  <joint name="t265_joint" type="fixed">
+    <origin xyz="0.15 -.05 0" rpy="0 0 0"/>
+    <parent link="base_link"/>
+    <child link="t265_pose_frame"/>
+  </joint>
+
+  <!--xacro:sensor_d435_kinect parent="base_link">
+      <origin xyz="0.15 0 0" rpy="0 0 0"/>
+  </xacro:sensor_d435_kinect-->
+</robot>
