@@ -1,11 +1,7 @@
 <?xml version="1.0"?>
 <launch>
 
-
-      <param name="robot_description" command="$(find xacro)/xacro '$(find covid_slam)/models/quad/quad.xacro'"/>
-
-    <node name="robot_state_publisher" pkg="robot_state_publisher" type="robot_state_publisher"/>
-
-    <node name="rviz" pkg="rviz" type="rviz"/>
+    <env name="ROS_MASTER_URI" value="http://jetson.local:11311"/>
+    <node name="rviz" pkg="rviz" type="rviz" args="-d $(find covid_slam)/rviz/quad.rviz"/>
 
 </launch>
