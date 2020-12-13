@@ -2,4 +2,12 @@
 <launch>
   <include file="$(find covid_slam)/launch/cameras.launch">
   </include>
+  <include file="$(find covid_slam)/launch/model.launch">
+  </include>
+  <include file="$(find covid_slam)/launch/mavros.launch">
+  </include>
+  <include file="$(find px4_realsense_bridge)/launch/bridge.launch">
+  </include>
+  <include file="$(find covid_slam)/launch/rtabmap.launch">
+  </include>
 </launch>

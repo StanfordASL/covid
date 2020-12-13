@@ -2,11 +2,11 @@
 <launch>
 
   <group ns="rtabmap">
-    <node name="rtabmap" pkg="rtabmap_ros" type="rtabmap" output="screen" args="--delete_db_on_start">
+    <!--node name="rtabmap" pkg="rtabmap_ros" type="rtabmap" output="screen" args="-delete_db_on_start">
 
       <param name="map_frame_id" value="map"/>
 
-      <!--remap from="odom" to="/mavros/local_position/odom"/--> 
+      <-remap from="odom" to="/mavros/local_position/odom"/-> 
 
 
       <param name="publish_tf" value="true"/>
@@ -25,7 +25,23 @@
       <remap from="rgb/camera_info" to="/d435i/color/camera_info"/>
       <remap from="rgb/camera_info" to="/d435i/color/camera_info"/>
 
+    </node-->
+
+    <node name="rtabmap_slam" pkg="rtabmap_ros" type="rtabmap" args="-delete_db_on_start">
+      <param name="odom_frame_id" value="t265_odom_frame"/>
+      <param name="odom_tf_angular_variane" value="0.0005"/>
+      <param name="odom_tf_linear_variance" value="0.0001"/>
+      <param name="frame_id" value="t265_link"/>
+      <param name="subscribe_odom_info" value="false"/>
+      <param name="visual_odometry" value="false"/>
+      <param name="map_always_update" value="true"/>
+
+      <remap from="rgb/image"       to="/d435i/color/image_raw"/>
+      <remap from="depth/image"     to="/d435i/aligned_depth_to_color/image_raw"/>
+      <remap from="rgb/camera_info" to="/d435i/color/camera_info"/>
+      <remap from="rgb/camera_info" to="/d435i/aligned_depth_to_color/camera_info"/>
     </node>
+
   </group>
 
 </launch>
