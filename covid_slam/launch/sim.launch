@@ -1,0 +1,8 @@
+<?xml version="1.0"?>
+<launch>
+
+    <include file="$(find covid_slam)/launch/iris_d435.launch"/>
+
+    <node pkg="covid_slam" type="timed_roslaunch.sh" name="timed_roslaunch" args="13 covid_slam rtabmap.launch depth_prefix:=/d435i/depth/color"/>
+
+</launch>

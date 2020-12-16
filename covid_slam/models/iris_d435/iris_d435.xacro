@@ -8,4 +8,5 @@
   <xacro:sensor_d435_kinect parent="base_link">
       <origin xyz="0.15 0 0" rpy="0 0 0"/>
   </xacro:sensor_d435_kinect>
+
 </robot>

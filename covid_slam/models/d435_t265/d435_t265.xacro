@@ -1,10 +1,22 @@
 <?xml version="1.0"?>
 
-<robot name="d435_t265" xmlns:xacro="http://ros.org/wiki/xacro">
-  <xacro:include filename="$(find realsense2_description)/urdf/_d435.urdf.xacro"/>
+<root name="d435_t265" xmlns:xacro="http://ros.org/wiki/xacro">
 
-  <link name="base_link" />
-  <xacro:sensor_d435 parent="base_link" use_nominal_extrinsics="$(arg use_nominal_extrinsics)">
-  <xacro:sensor_d435>
+  <xacro:include filename="$(find covid_slam)/models/d435_kinect/d435_kinect.xacro"/>
+
+  <xacro:sensor_d435_kinect parent="base_link">
+      <origin xyz="0.15 0 0" rpy="0 0 0"/>
+  </xacro:sensor_d435_kinect>
+
+  <link name="t265_odom_frame"/>
+  <link name="t265_link"/>
+
+  <joint name="t265_joint" type="fixed">
+    <origin xyz="-0.15 0 .05" rpy="0 0 0"/>
+    <parent link="t265_pose_frame"/>
+    <child link="base_link"/>
+  </joint>
+
+  <link>
 
 </robot>

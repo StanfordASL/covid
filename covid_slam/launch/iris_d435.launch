@@ -63,6 +63,6 @@
 
     <node name="robot_state_publisher" pkg="robot_state_publisher" type="robot_state_publisher"/>
     <node name="joint_state_publisher" pkg="joint_state_publisher" type="joint_state_publisher"/>
-    <node name="rviz" pkg="rviz" type="rviz" output="log" args="-d $(find covid_slam)/launch/quad.rviz"/>
+    <node name="rviz" pkg="rviz" type="rviz" output="log" args="-d $(find covid_slam)/rviz/sim.rviz"/> 
 
 </launch>

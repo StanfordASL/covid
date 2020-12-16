@@ -66,10 +66,10 @@ imu:
 
 # local_position
 local_position:
-  frame_id: "odom"
+  frame_id: "t265_odom_frame"
   tf:
     send: true
-    frame_id: "odom"
+    frame_id: "t265_odom_frame"
     child_frame_id: "base_link"
     send_fcu: false
 
