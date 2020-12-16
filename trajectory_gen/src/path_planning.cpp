@@ -49,8 +49,8 @@ public:
         bounds.setHigh(0, 10);
         bounds.setLow(1, -10);
         bounds.setHigh(1, 10);
-        bounds.setLow(2, -1);
-        bounds.setHigh(2, 1);
+        bounds.setLow(2, .5);
+        bounds.setHigh(2, 2);
         space->as<ob::SE3StateSpace>()->setBounds(bounds);
 
     
@@ -151,13 +151,13 @@ public:
     void setGoal(const geometry_msgs::PoseStamped &pose_stamped) {
         goal_pose.position.x = pose_stamped.pose.position.x;
         goal_pose.position.y = pose_stamped.pose.position.y;
-        goal_pose.position.z = pose_stamped.pose.position.z;
+        goal_pose.position.z = 1.0;
     }
 
     void setDronePose(void) {
         geometry_msgs::TransformStamped transform_stamped;
         try {
-            transform_stamped = tf_buffer.lookupTransform("map", "t265_link", ros::Time(0));
+            transform_stamped = tf_buffer.lookupTransform("map", "base_link", ros::Time(0));
         } catch (tf2::TransformException &ex) {
             ROS_WARN("%s", ex.what());
             return;
