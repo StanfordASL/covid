@@ -28,10 +28,12 @@
 #include <ompl/base/spaces/SO3StateSpace.h>
 #include <ompl/geometric/planners/rrt/InformedRRTstar.h>
 #include <ompl/base/objectives/PathLengthOptimizationObjective.h>
+#include <ompl/util/Console.h>
 
 
 namespace ob = ompl::base;
 namespace og = ompl::geometric;
+namespace om = ompl::msg;
 
 ros::Publisher traj_pub;
 ros::Publisher vis_pub;
@@ -41,6 +43,7 @@ class planner {
 
 public:
     planner(void) {
+        om::setLogLevel(om::LOG_NONE);
         drone_geom = std::shared_ptr<fcl::CollisionGeometryd>(new fcl::Boxd(0.3, 0.3, 0.1));
         tf_listener = new tf2_ros::TransformListener(tf_buffer);
         space = ob::StateSpacePtr(new ob::SE3StateSpace());
@@ -52,13 +55,15 @@ public:
         bounds.setLow(2, .5);
         bounds.setHigh(2, 2);
         space->as<ob::SE3StateSpace>()->setBounds(bounds);
-
-    
+        goal_pose.position.x = 0;
+        goal_pose.position.y = 0;
+        goal_pose.position.z = 1.0;
 
         si = std::make_shared<ob::SpaceInformation>(space);
         si->setStateValidityChecker(std::bind(&planner::isStateValid, this, std::placeholders::_1));
         pdef = ob::ProblemDefinitionPtr(new ob::ProblemDefinition(si));
         pdef->setOptimizationObjective(ob::OptimizationObjectivePtr(new ob::PathLengthOptimizationObjective(si)));
+
     }
 
     ~planner() {}
@@ -85,9 +90,11 @@ public:
         ob::PlannerPtr plan(new og::InformedRRTstar(si));
         plan->setProblemDefinition(pdef);
         plan->setup();
+
         ob::PlannerStatus solved = plan->solve(2); 
 
         if (solved) {
+
 
             visualization_msgs::Marker clear;
             clear.action = visualization_msgs::Marker::DELETEALL;
