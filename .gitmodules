@@ -1,3 +1,6 @@
 [submodule "realsense-ros"]
 	path = realsense-ros
 	url = https://github.com/StanfordASL/realsense-ros
+[submodule "darknet_ros"]
+	path = darknet_ros
+	url = https://github.com/StanfordASL/darknet_ros.git
