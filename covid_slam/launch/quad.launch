@@ -10,4 +10,6 @@
   </include>
   <include file="$(find covid_slam)/launch/rtabmap.launch">
   </include>
+  <node name="rrt_planner" pkg="trajectory_gen" type="rrt_star" output="screen"/>
+  <!--node name="breadcrumb" pkg="trajectory_gen" type="breadcrumb.py"/-->
 </launch>
