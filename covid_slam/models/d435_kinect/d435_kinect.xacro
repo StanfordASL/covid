@@ -120,11 +120,11 @@ aluminum peripherial evaluation case.
       <sensor name="{name}depth" type="depth">
         <update_rate>20</update_rate>
         <camera name="{name}">
-            <horizontal_fov>${90*deg_to_rad}</horizontal_fov> <!--69.4-->
+            <horizontal_fov>${74*deg_to_rad}</horizontal_fov> <!--69.4-->
           <image>
-            <width>480</width>1920
-            <height>270</height>1080
-            <format>L_INT8</format>
+            <width>640</width>1920
+            <height>480</height>1080
+            <format>R8G8B8</format>
           </image>
           <clip>
             <near>0.1</near>
@@ -134,13 +134,13 @@ aluminum peripherial evaluation case.
         <plugin filename="libgazebo_ros_openni_kinect.so" name="camera_controller">
           <cameraName>${name}</cameraName>
           <alwaysOn>true</alwaysOn>
-          <updateRate>20</updateRate>
+          <updateRate>30</updateRate>
           <pointCloudCutoff>0.2</pointCloudCutoff>
           <pointCloudCutoffMax>15</pointCloudCutoffMax>
           <imageTopicName>color/image_raw</imageTopicName>
           <cameraInfoTopicName>color/camera_info</cameraInfoTopicName>
-          <depthImageTopicName>depth/color/image_raw</depthImageTopicName>
-          <depthImageCameraInfoTopicName>depth/color/camera_info</depthImageCameraInfoTopicName>
+          <depthImageTopicName>aligned_depth_to_color/image_raw</depthImageTopicName>
+          <depthImageCameraInfoTopicName>aligned_depth_to_color/camera_info</depthImageCameraInfoTopicName>
           <pointCloudTopicName>depth/color/points</pointCloudTopicName>
           <frameName>${name}_color_optical_frame</frameName>
           <distortion_k1>0.0</distortion_k1>

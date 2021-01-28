@@ -2,6 +2,7 @@
 <launch>
 
     <env name="ROS_MASTER_URI" value="http://jetson.local:11311"/>
+    <env name="ROS_IP" value="seanmac.local"/>
     <node name="rviz" pkg="rviz" type="rviz" args="-d $(find covid_slam)/rviz/quad.rviz"/>
 
 </launch>
