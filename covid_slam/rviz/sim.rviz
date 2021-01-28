@@ -151,6 +151,14 @@ Visualization Manager:
       Transport Hint: raw
       Unreliable: false
       Value: true
+    - Class: rviz/Marker
+      Enabled: true
+      Marker Topic: /goal_gen/handle_centroid
+      Name: Marker
+      Namespaces:
+        "": true
+      Queue Size: 100
+      Value: true
   Enabled: true
   Global Options:
     Background Color: 48; 48; 48
@@ -194,10 +202,10 @@ Visualization Manager:
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: -0.05960206687450409
+      Pitch: 1.06539785861969
       Target Frame: <Fixed Frame>
       Value: Orbit (rviz)
-      Yaw: 1.275397539138794
+      Yaw: 1.5753974914550781
     Saved: ~
 Window Geometry:
   Displays:
@@ -217,5 +225,5 @@ Window Geometry:
   Views:
     collapsed: false
   Width: 3328
-  X: 0
-  Y: 0
+  X: 67
+  Y: 427

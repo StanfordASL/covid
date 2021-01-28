@@ -3,6 +3,8 @@
 
     <include file="$(find covid_slam)/launch/iris_d435.launch"/>
 
-    <node pkg="covid_slam" type="timed_roslaunch.sh" name="timed_roslaunch" args="13 covid_slam rtabmap.launch"/>
+    <node pkg="covid_slam" type="timed_roslaunch.sh" name="rtabmap" args="8 covid_slam rtabmap.launch"/>
+
+    <node pkg="covid_slam" type="timed_roslaunch.sh" name="darknet" args="5 darknet_ros darknet_ros.launch"/>
 
 </launch>
