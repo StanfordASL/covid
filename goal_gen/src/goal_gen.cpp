@@ -33,40 +33,32 @@ using namespace message_filters;
 #include <tf2_ros/transform_listener.h>
 
 // Initialize publishers
-ros::Publisher pub_handles;
-ros::Publisher pub_handle_cloud;
+ros::Publisher pub_goals;
 
 // Initialize transformer
 tf2_ros::Buffer* tfBuffer;
 tf2_ros::TransformListener* tfListener;
 
 
-void generate_sub_cloud(const pcl::PointCloud<pcl::PointXYZRGB>::Ptr input_cloud, pcl::PointCloud<pcl::PointXYZRGB>::Ptr output_cloud, const darknet_ros_msgs::BoundingBox& box) {
+void generate_sub_cloud(const pcl::PointCloud<pcl::PointXYZ>::Ptr input_cloud, pcl::PointCloud<pcl::PointXYZ>::Ptr output_cloud, const darknet_ros_msgs::BoundingBox& box) {
     int width = 640;
     int xmin = box.xmin;
     int xmax = box.xmax;
     int ymin = box.ymin;
     int ymax = box.ymax;
     std::vector<int> indices;
-    for (int column = xmin; column < xmax; column++){
-        for (int row = ymin; row < ymax; row++){
+    for (int column = xmin; column < xmax; column += 2){
+        for (int row = ymin; row < ymax; row += 2){
             indices.push_back(row * width + column);
         }
     }
     pcl::PointIndices::Ptr roi(new pcl::PointIndices ());
     roi->indices = indices;
-    pcl::ExtractIndices<pcl::PointXYZRGB> extract_roi;
+    pcl::ExtractIndices<pcl::PointXYZ> extract_roi;
     extract_roi.setInputCloud(input_cloud);
     extract_roi.setIndices(roi);
     extract_roi.setNegative(false);
-    //pcl::PointCloud<pcl::PointXYZRGB>::Ptr roi_cloud (new pcl::PointCloud<pcl::PointXYZRGB>);
     extract_roi.filter(*output_cloud);
-    /*
-    pcl::VoxelGrid<pcl::PointXYZRGB> voxelgrid;
-    voxelgrid.setInputCloud(roi_cloud);
-    voxelgrid.setLeafSize (0.01, 0.02, 0.02); //size of the grid
-    voxelgrid.filter (*output_cloud);
-    */
 }
 
 void cloud_cb (const sensor_msgs::PointCloud2ConstPtr& input_cloud, const darknet_ros_msgs::BoundingBoxesConstPtr& input_detection)
@@ -76,7 +68,7 @@ void cloud_cb (const sensor_msgs::PointCloud2ConstPtr& input_cloud, const darkne
         ROS_WARN("Transform not yet available");
         return;
     }  
-    geometry_msgs::TransformStamped transformStamped = tfBuffer->lookupTransform(input_cloud->header.frame_id, "map", input_cloud->header.stamp);
+    geometry_msgs::TransformStamped mapTransform = tfBuffer->lookupTransform(input_cloud->header.frame_id, "map", input_cloud->header.stamp);
 
     // Match door boxes with handle boxes
     std::vector<std::pair<int, int>> full_doors;
@@ -107,52 +99,58 @@ void cloud_cb (const sensor_msgs::PointCloud2ConstPtr& input_cloud, const darkne
     if (full_doors.size() == 0) return;
 
     // Set up output msgs
-    visualization_msgs::Marker door_centroid_list, handle_centroid_list;
-    door_centroid_list.header.frame_id = handle_centroid_list.header.frame_id = "d435i_depth_optical_frame";
-    door_centroid_list.type = handle_centroid_list.type = 7;
-    door_centroid_list.color.a = handle_centroid_list.color.a = 1.0;
-    door_centroid_list.color.r = handle_centroid_list.color.r = 1.0;
-    door_centroid_list.action  = handle_centroid_list.action = 0;
-    door_centroid_list.scale.x = handle_centroid_list.scale.x = 0.1;
-    door_centroid_list.scale.y = handle_centroid_list.scale.y = 0.1;
-    door_centroid_list.scale.z = handle_centroid_list.scale.z = 0.1;
+    visualization_msgs::Marker goals;
+    goals.header.frame_id = input_cloud->header.frame_id;
+    goals.type = 7;
+    goals.color.a = 1.0;
+    goals.color.r = 1.0;
+    goals.action = 0;
+    goals.scale.x = 0.1;
+    goals.scale.y = 0.1;
+    goals.scale.z = 0.1;
 
     // Convert input cloud to pcl
-    pcl::PointCloud<pcl::PointXYZRGB>::Ptr raw_cloud(new pcl::PointCloud<pcl::PointXYZRGB>); 
+    pcl::PointCloud<pcl::PointXYZ>::Ptr raw_cloud(new pcl::PointCloud<pcl::PointXYZ>); 
     pcl::fromROSMsg(*input_cloud, *raw_cloud);
-
 
 
     for (int i = 0; i < full_doors.size(); i++) {
         int door_idx = full_doors[i].first;
         int handle_idx = full_doors[i].second;
 
-        pcl::PointCloud<pcl::PointXYZRGB>::Ptr handle_cloud(new pcl::PointCloud<pcl::PointXYZRGB>);
+        pcl::PointCloud<pcl::PointXYZ>::Ptr handle_cloud(new pcl::PointCloud<pcl::PointXYZ>);
         generate_sub_cloud(raw_cloud, handle_cloud, input_detection->bounding_boxes[handle_idx]);
-
-        sensor_msgs::PointCloud2 handle_cloud_ros;
-        pcl::toROSMsg(*handle_cloud, handle_cloud_ros);
-
-      // Set output frame as the input frame
-        handle_cloud_ros.header.frame_id             = input_cloud->header.frame_id;
-        pub_handle_cloud.publish(handle_cloud_ros);
-
-        // Compute the handle centroid
-        pcl::PointXYZRGB handle_centroid;
+        pcl::PointXYZ handle_centroid;
         pcl::computeCentroid(*handle_cloud, handle_centroid); 
 
-        // Transform centroid to map frame (currently commented out)
-        geometry_msgs::PoseStamped p_old;
-        p_old.pose.position.x = handle_centroid.x; //- coefficients->values[0];
-        p_old.pose.position.y = handle_centroid.y; //- coefficients->values[1];
-        p_old.pose.position.z = handle_centroid.z; //- coefficients->values[2];
-        //geometry_msgs::PoseStamped p_new;
-        p_old.header.frame_id = input_cloud->header.frame_id;     
-        //tfBuffer->transform(p_old, p_new, "map", input_cloud->header.stamp, input_cloud->header.frame_id);
 
-        handle_centroid_list.points.push_back(p_old.pose.position);
+        pcl::PointCloud<pcl::PointXYZ>::Ptr door_cloud(new pcl::PointCloud<pcl::PointXYZ>);
+        generate_sub_cloud(raw_cloud, door_cloud, input_detection->bounding_boxes[door_idx]);
+        pcl::ModelCoefficients::Ptr coefficients (new pcl::ModelCoefficients ());
+        pcl::PointIndices::Ptr inlier_indices (new pcl::PointIndices ()); 
+        pcl::SACSegmentation<pcl::PointXYZ> seg;
+        seg.setOptimizeCoefficients (true);
+        seg.setModelType (pcl::SACMODEL_PLANE);
+        seg.setMethodType (pcl::SAC_RANSAC);
+        seg.setDistanceThreshold (0.01);
+        seg.setInputCloud (door_cloud);
+        seg.segment (*inlier_indices, *coefficients);
+
+
+
+        // Transform centroid to map frame
+        geometry_msgs::PoseStamped p_old;
+        p_old.pose.position.x = handle_centroid.x - coefficients->values[0];
+        p_old.pose.position.y = handle_centroid.y - coefficients->values[1];
+        p_old.pose.position.z = handle_centroid.z;
+        geometry_msgs::PoseStamped p_new;
+        p_old.header.frame_id = input_cloud->header.frame_id;     
+        tfBuffer->transform(p_old, p_new, "map", input_cloud->header.stamp, input_cloud->header.frame_id);
+
+        goals.points.push_back(p_old.pose.position);
+        std::cout << "pushed back a point" << std::endl;
     }
-    pub_handles.publish(handle_centroid_list);
+    pub_goals.publish(goals);
 }
 
 
@@ -165,7 +163,7 @@ main (int argc, char** argv)
   ros::NodeHandle nh;
 
   // Initialize subscribers to darknet detection and pointcloud;
-  message_filters::Subscriber<sensor_msgs::PointCloud2> sub_image(nh, "d435i/depth/color/points", 1);
+  message_filters::Subscriber<sensor_msgs::PointCloud2> sub_image(nh, "d435i/aligned_depth_to_color/points", 1);
   message_filters::Subscriber<darknet_ros_msgs::BoundingBoxes> sub_box(nh, "darknet_ros/bounding_boxes", 1);
 
   // Initialize transform listener
@@ -178,10 +176,8 @@ main (int argc, char** argv)
   Synchronizer<MySyncPolicy> sync(MySyncPolicy(50), sub_image, sub_box);
   sync.registerCallback(boost::bind(&cloud_cb, _1, _2));
 
-  // Create a ROS publisher for the output point cloud
-  pub_handle_cloud = nh.advertise<sensor_msgs::PointCloud2> ("goal_gen/handle_cloud", 1);
   // Create a ROS publisher for the output handle points
-  pub_handles = nh.advertise<visualization_msgs::Marker> ("goal_gen/handles", 1);
+  pub_goals = nh.advertise<visualization_msgs::Marker> ("goal_gen/goals", 1);
 
 
   // Spin

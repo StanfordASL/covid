@@ -19,6 +19,7 @@ find_package(catkin REQUIRED COMPONENTS
   message_filters
   tf2_ros
   geometry_msgs
+  pcl_conversions
   #octomap_msgs
   #octomap_ros
 )

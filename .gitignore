@@ -7,6 +7,7 @@ find-object
 mavlink
 mavros
 image_transport_plugins
+image_pipeline
 .rosinstall*
 VIO
 Firmware
