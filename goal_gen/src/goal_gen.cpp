@@ -34,10 +34,27 @@ using namespace message_filters;
 
 // Initialize publishers
 ros::Publisher pub_goals;
+ros::Publisher pub_handles;
 
 // Initialize transformer
 tf2_ros::Buffer* tfBuffer;
 tf2_ros::TransformListener* tfListener;
+
+std::list<geometry_msgs::Point> goals;
+const float DISTANCE_THRESHOLD = 1.0;
+
+visualization_msgs::Marker goals_msg;
+
+float dist(geometry_msgs::Point& p1, geometry_msgs::Point& p2) {
+    float x_diff = p1.x - p2.x;
+    float y_diff = p1.y - p2.y;
+    float z_diff = p1.z - p2.z;
+    return sqrt(pow(x_diff, 2) + pow(y_diff, 2) + pow(z_diff, 2));
+}
+
+void goal_cb (const visualization_msgs::MarkerConstPtr& msg)
+{
+}
 
 
 void generate_sub_cloud(const pcl::PointCloud<pcl::PointXYZ>::Ptr input_cloud, pcl::PointCloud<pcl::PointXYZ>::Ptr output_cloud, const darknet_ros_msgs::BoundingBox& box) {
@@ -99,15 +116,15 @@ void cloud_cb (const sensor_msgs::PointCloud2ConstPtr& input_cloud, const darkne
     if (full_doors.size() == 0) return;
 
     // Set up output msgs
-    visualization_msgs::Marker goals;
-    goals.header.frame_id = input_cloud->header.frame_id;
-    goals.type = 7;
-    goals.color.a = 1.0;
-    goals.color.r = 1.0;
-    goals.action = 0;
-    goals.scale.x = 0.1;
-    goals.scale.y = 0.1;
-    goals.scale.z = 0.1;
+    visualization_msgs::Marker handles;
+    handles.header.frame_id = "map";//input_cloud->header.frame_id;
+    handles.type = 7;
+    handles.color.a = 1.0;
+    handles.color.r = 1.0;
+    handles.action = 0;
+    handles.scale.x = 0.1;
+    handles.scale.y = 0.1;
+    handles.scale.z = 0.1;
 
     // Convert input cloud to pcl
     pcl::PointCloud<pcl::PointXYZ>::Ptr raw_cloud(new pcl::PointCloud<pcl::PointXYZ>); 
@@ -138,19 +155,42 @@ void cloud_cb (const sensor_msgs::PointCloud2ConstPtr& input_cloud, const darkne
 
 
 
+
+        std::cout << coefficients->values[0] << std::endl;
+        std::cout << coefficients->values[1] << std::endl;
+        std::cout << coefficients->values[2] << std::endl << std::endl;
+
         // Transform centroid to map frame
         geometry_msgs::PoseStamped p_old;
         p_old.pose.position.x = handle_centroid.x - coefficients->values[0];
-        p_old.pose.position.y = handle_centroid.y - coefficients->values[1];
-        p_old.pose.position.z = handle_centroid.z;
+        p_old.pose.position.y = handle_centroid.y;// - coefficients->values[1];
+        p_old.pose.position.z = handle_centroid.z - coefficients->values[2];
         geometry_msgs::PoseStamped p_new;
         p_old.header.frame_id = input_cloud->header.frame_id;     
         tfBuffer->transform(p_old, p_new, "map", input_cloud->header.stamp, input_cloud->header.frame_id);
 
-        goals.points.push_back(p_old.pose.position);
-        std::cout << "pushed back a point" << std::endl;
+
+        handles.points.push_back(p_new.pose.position);
     }
-    pub_goals.publish(goals);
+    pub_handles.publish(handles);
+
+    for (geometry_msgs::Point& handle : handles.points) {
+        bool unique = true;
+        for (geometry_msgs::Point& goal: goals_msg.points) {
+            if (dist(goal, handle) < DISTANCE_THRESHOLD) {
+                goal.x = 0.9 * goal.x + 0.1 * handle.x;
+                goal.y = 0.9 * goal.y + 0.1 * handle.y;
+                goal.z = 0.9 * goal.z + 0.1 * handle.z;
+                unique = false;
+            }
+        }
+        if (unique) {
+            goals_msg.points.push_back(handle);
+        }
+    }
+    if (goals_msg.points.size() != 0) {
+        pub_goals.publish(goals_msg);
+    }
 }
 
 
@@ -158,6 +198,15 @@ void cloud_cb (const sensor_msgs::PointCloud2ConstPtr& input_cloud, const darkne
 int
 main (int argc, char** argv)
 {
+  goals_msg.header.frame_id = "map";
+  goals_msg.type = 7;
+  goals_msg.color.a = 1.0;
+  goals_msg.color.g = 1.0;
+  goals_msg.action = 0;
+  goals_msg.scale.x = 0.1;
+  goals_msg.scale.y = 0.1;
+  goals_msg.scale.z = 0.1;
+
   // Initialize ROS
   ros::init (argc, argv, "pointcloud_processing");
   ros::NodeHandle nh;
@@ -177,6 +226,7 @@ main (int argc, char** argv)
   sync.registerCallback(boost::bind(&cloud_cb, _1, _2));
 
   // Create a ROS publisher for the output handle points
+  pub_handles = nh.advertise<visualization_msgs::Marker> ("goal_gen/handles", 1);
   pub_goals = nh.advertise<visualization_msgs::Marker> ("goal_gen/goals", 1);
 
 

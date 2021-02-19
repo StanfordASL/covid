@@ -15,6 +15,7 @@ find_package(catkin REQUIRED COMPONENTS
   roscpp
   #sensor_msgs
   visualization_msgs
+  mavros_msgs
   #darknet_ros_msgs
   #message_filters
   #tf2_ros
@@ -153,7 +154,7 @@ include_directories(
 ## With catkin_make all packages are built within a single CMake context
 ## The recommended prefix ensures that target names across packages don't collide
 # add_executable(${PROJECT_NAME}_node src/trajectory_gen_node.cpp)
-add_executable(goal_gen src/goal_gen.cpp)
+add_executable(commander src/commander.cpp)
 
 ## Rename C++ executable without prefix
 ## The above recommended prefix causes long target names, the following renames the

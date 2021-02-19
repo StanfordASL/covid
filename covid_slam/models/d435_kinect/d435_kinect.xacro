@@ -141,7 +141,7 @@ aluminum peripherial evaluation case.
           <cameraInfoTopicName>color/camera_info</cameraInfoTopicName>
           <depthImageTopicName>aligned_depth_to_color/image_raw</depthImageTopicName>
           <depthImageCameraInfoTopicName>aligned_depth_to_color/camera_info</depthImageCameraInfoTopicName>
-          <pointCloudTopicName>depth/color/points</pointCloudTopicName>
+          <pointCloudTopicName>aligned_depth_to_color/points</pointCloudTopicName>
           <frameName>${name}_color_optical_frame</frameName>
           <distortion_k1>0.0</distortion_k1>
           <distortion_k2>0.0</distortion_k2>

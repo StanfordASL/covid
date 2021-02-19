@@ -42,7 +42,7 @@
 
     <include>
       <uri>model://fire_truck</uri>
-      <pose> -3.5 -1.2 0 0 0 0</pose>
+      <pose> 3.5 -1.2 0 0 0 0</pose>
     </include>
 
 

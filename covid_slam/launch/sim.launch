@@ -7,4 +7,6 @@
 
     <node pkg="covid_slam" type="timed_roslaunch.sh" name="darknet" args="5 darknet_ros darknet_ros.launch"/>
 
+    <node pkg="goal_gen" type="goal_gen" name="goal_gen"/>
+
 </launch>
