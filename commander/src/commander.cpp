@@ -12,8 +12,10 @@
 
 
 const float TAKEOFF_ALTITUDE = 1.0;
+const float DIST_THRESH = 0.1;
 
 enum State {
+  GROUNDED,
   TAKEOFF,
   EXPLORE,
   LAND
@@ -30,6 +32,7 @@ class Commander {
     mavros_msgs::SetMode offb_set_mode;
     mavros_msgs::SetMode land_set_mode;
     mavros_msgs::CommandBool arm_cmd;
+    mavros_msgs::CommandBool disarm_cmd;
 
 
     ros::NodeHandle nh;
@@ -69,9 +72,11 @@ class Commander {
       goals_sub = nh.subscribe("goal_gen/goals", 1, &Commander::goals_cb, this);
       pose_sub = nh.subscribe("mavros/local_position/pose", 1, &Commander::pose_cb, this);
 
+
       offb_set_mode.request.custom_mode = "OFFBOARD";
-      land_set_mode.request.custom_mode = "LAND";
+      land_set_mode.request.custom_mode = "AUTO.LAND";
       arm_cmd.request.value = true;
+      disarm_cmd.request.value = false;
 
       goal_pose.pose.position.x = 0;
       goal_pose.pose.position.y = 0;
@@ -83,10 +88,25 @@ class Commander {
 
 
     void explore() {
-
+      static ros::Time explore_time = ros::Time::now();
+      std::cout << (ros::Time::now() - explore_time).toSec() << std::endl;
+      if(ros::Time::now() - explore_time > ros::Duration(5.0)) {
+        state = LAND;
+      }
     }
 
     void land() {
+      if (px4_state.mode == "OFFBOARD") {
+        if (ros::Time::now() - last_request > ros::Duration(1.0)) {
+          ROS_INFO("px4 - switching to AUTO.LAND");
+          set_mode_client.call(land_set_mode); 
+          last_request = ros::Time::now();
+        }
+      } else if (current_pose.pose.position.z < DIST_THRESH) {
+        ROS_INFO("Lowering");
+      } else {
+        state = GROUNDED;
+      }
     }
 
     void takeoff() {
@@ -95,20 +115,25 @@ class Commander {
         i--;
       } else if (px4_state.mode != "OFFBOARD") {
         if (ros::Time::now() - last_request > ros::Duration(1.0)) {
-          ROS_INFO("Waiting to switch to Offboard");
+          ROS_INFO("px4 - switching to OFFBOARD");
           set_mode_client.call(offb_set_mode); 
           last_request = ros::Time::now();
         }
       } else if (!px4_state.armed) {
         if (ros::Time::now() - last_request > ros::Duration(1.0)) {
-          ROS_INFO("Waiting to arm");
+          ROS_INFO("px4 - arming");
           arming_client.call(arm_cmd);
           last_request = ros::Time::now();
         }
-      } else if (current_pose.pose.position.z > TAKEOFF_ALTITUDE - 0.1) {
-        ROS_INFO("Waiting to rise");
+      } else if (current_pose.pose.position.z < TAKEOFF_ALTITUDE - DIST_THRESH) {
+        ROS_INFO("Rising");
+      } else {
         state = EXPLORE;
       }
+    }
+
+    void wait() {
+      // HAHA do nothing buddy, for now...
     }
 
     void run() {
@@ -121,6 +146,8 @@ class Commander {
           explore();
         } else if (state == LAND) {
           land();
+        } else if (state == GROUNDED) {
+          wait();
         }
         goal_pose_pub.publish(goal_pose);
         ros::spinOnce();
