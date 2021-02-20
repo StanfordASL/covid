@@ -2,11 +2,9 @@
 <launch>
   <include file="$(find covid_slam)/launch/cameras.launch"/>
   <include file="$(find covid_slam)/launch/model.launch"/>
-  <include file="$(find depth_image_proc)/launch/pointcloud.launch"/>
-  <!--include file="$(find covid_slam)/launch/mavros.launch">
-  </include>
-  <include file="$(find px4_realsense_bridge)/launch/bridge.launch">
-  </include-->
+  <!--include file="$(find depth_image_proc)/launch/pointcloud.launch"/-->
+  <include file="$(find covid_slam)/launch/mavros.launch"/>
+  <include file="$(find px4_realsense_bridge)/launch/bridge.launch"/>
   <include file="$(find covid_slam)/launch/rtabmap.launch"/>
   <include file="$(find darknet_ros)/launch/darknet_ros.launch"/>
   <!--node name="rrt_planner" pkg="trajectory_gen" type="rrt_star" output="screen"/-->
