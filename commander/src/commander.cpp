@@ -9,6 +9,7 @@
 #include <mavros_msgs/CommandBool.h>
 #include <mavros_msgs/State.h>
 #include <mavros_msgs/SetMode.h>
+#include <string>
 
 
 const float TAKEOFF_ALTITUDE = 1.0;
@@ -30,6 +31,7 @@ class Commander {
 
     mavros_msgs::State px4_state;
     mavros_msgs::SetMode offb_set_mode;
+    mavros_msgs::SetMode tkff_set_mode;
     mavros_msgs::SetMode land_set_mode;
     mavros_msgs::CommandBool arm_cmd;
     mavros_msgs::CommandBool disarm_cmd;
@@ -73,6 +75,7 @@ class Commander {
       pose_sub = nh.subscribe("mavros/local_position/pose", 1, &Commander::pose_cb, this);
 
 
+      tkff_set_mode.request.custom_mode = "AUTO.TAKEOFF";
       offb_set_mode.request.custom_mode = "OFFBOARD";
       land_set_mode.request.custom_mode = "AUTO.LAND";
       arm_cmd.request.value = true;
@@ -110,23 +113,29 @@ class Commander {
     }
 
     void takeoff() {
-      static int i = 10;
-      if (i > 0) {
-        i--;
-      } else if (px4_state.mode != "OFFBOARD") {
-        if (ros::Time::now() - last_request > ros::Duration(1.0)) {
-          ROS_INFO("px4 - switching to OFFBOARD");
-          set_mode_client.call(offb_set_mode); 
-          last_request = ros::Time::now();
-        }
-      } else if (!px4_state.armed) {
+      static bool begun_takeoff = false;
+      std::cout << px4_state.mode << std::endl;
+      if (!px4_state.armed) {
         if (ros::Time::now() - last_request > ros::Duration(1.0)) {
           ROS_INFO("px4 - arming");
           arming_client.call(arm_cmd);
           last_request = ros::Time::now();
         }
-      } else if (current_pose.pose.position.z < TAKEOFF_ALTITUDE - DIST_THRESH) {
-        ROS_INFO("Rising");
+      } else if (px4_state.mode != "AUTO.TAKEOFF" && px4_state.mode != "AUTO.LOITER" && !begun_takeoff) {
+        if (ros::Time::now() - last_request > ros::Duration(1.0)) {
+          ROS_INFO("px4 - switching to AUTO.TAKEOFF");
+          set_mode_client.call(tkff_set_mode); 
+          last_request = ros::Time::now();
+        }
+      } else if (px4_state.mode == "AUTO.TAKEOFF") {
+        begun_takeoff = true;
+        //Wait
+      } else if (px4_state.mode == "AUTO.LOITER") {
+        if (ros::Time::now() - last_request > ros::Duration(1.0)) {
+          ROS_INFO("px4 - switching to OFFBOARD");
+          set_mode_client.call(offb_set_mode); 
+          last_request = ros::Time::now();
+        }
       } else {
         state = EXPLORE;
       }
