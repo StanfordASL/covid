@@ -14,8 +14,11 @@
 
 
 const float TAKEOFF_ALTITUDE = 1.0;
-const float YAW_PERIOD = 20.0;
+const float YAW_PERIOD = 14.0;
 const float DIST_THRESH = 0.1;
+const float Z_OFFSET = 0.06;
+const float X_OFFSET = -0.10;
+
 
 enum State {
   GROUNDED,
@@ -80,13 +83,13 @@ class Commander {
       arm_cmd.request.value = true;
       disarm_cmd.request.value = false;
 
-      goal_pose.pose.position.x = 0;
+      goal_pose.pose.position.x = 0 + X_OFFSET;
       goal_pose.pose.position.y = 0;
-      goal_pose.pose.position.z = TAKEOFF_ALTITUDE;
+      goal_pose.pose.position.z = TAKEOFF_ALTITUDE + Z_OFFSET;
 
-      final_pose.pose.position.x = 4;
+      final_pose.pose.position.x = 4 + X_OFFSET;
       final_pose.pose.position.y = 0;
-      final_pose.pose.position.z = TAKEOFF_ALTITUDE;
+      final_pose.pose.position.z = TAKEOFF_ALTITUDE + Z_OFFSET;
 
       start_time = ros::Time::now();
       connect_mavros();
@@ -96,7 +99,7 @@ class Commander {
     void explore() {
       goal_pose = final_pose;
       static ros::Time explore_start = ros::Time::now();
-      float yaw = 1.57 * sin((ros::Time::now() - explore_start).toSec() * 2 * M_PI / YAW_PERIOD) ;
+      float yaw = 1 * sin((ros::Time::now() - explore_start).toSec() * 2 * M_PI / YAW_PERIOD) ;
       std::cout << "yaw: " << yaw << std::endl;
       
       tf2::Quaternion q = tf2::Quaternion(0, 0, yaw);  
@@ -107,19 +110,20 @@ class Commander {
       goal_pose.pose.orientation.w = q.w();
 
       std::cout << (ros::Time::now() - explore_start).toSec() << std::endl;
-      if(ros::Time::now() - explore_start > ros::Duration(10.0)) {
+      if(ros::Time::now() - explore_start > ros::Duration(30.0)) {
         state = LAND;
       }
     }
 
     void land() {
+      static ros::Time land_start = ros::Time::now();
       if (px4_state.mode == "OFFBOARD") {
         if (ros::Time::now() - last_request > ros::Duration(1.0)) {
           ROS_INFO("px4 - switching to AUTO.LAND");
           set_mode_client.call(land_set_mode); 
           last_request = ros::Time::now();
         }
-      } else if (current_pose.pose.position.z > DIST_THRESH) {
+      } else if (current_pose.pose.position.z > DIST_THRESH + Z_OFFSET || (ros::Time::now() - land_start).toSec() < 5.0) {
         ROS_INFO("Lowering");
       } else if (px4_state.armed) {
         if (ros::Time::now() - last_request > ros::Duration(1.0)) {
@@ -145,7 +149,7 @@ class Commander {
           arming_client.call(arm_cmd);
           last_request = ros::Time::now();
         }
-      } else if (current_pose.pose.position.z < TAKEOFF_ALTITUDE - DIST_THRESH) {
+      } else if (current_pose.pose.position.z < TAKEOFF_ALTITUDE + Z_OFFSET - DIST_THRESH) {
         ROS_INFO("Rising");
       } else {
         state = EXPLORE;
