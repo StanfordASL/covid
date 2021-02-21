@@ -1,18 +1,20 @@
 #include <ros/ros.h>
-#include <geometry_msgs/Point.h>
+#include <math.h>
+//#include <geometry_msgs/Point.h>
 #include <geometry_msgs/PoseStamped.h>
 #include <visualization_msgs/Marker.h>
-#include <utility>
-#include <tf2_geometry_msgs/tf2_geometry_msgs.h>
-#include <list>
-#include <cmath>
+//#include <utility>
+//#include <tf2_geometry_msgs/tf2_geometry_msgs.h>
+//#include <list>
+//#include <cmath>
 #include <mavros_msgs/CommandBool.h>
 #include <mavros_msgs/State.h>
 #include <mavros_msgs/SetMode.h>
-#include <string>
+#include <tf2/LinearMath/Quaternion.h>
 
 
 const float TAKEOFF_ALTITUDE = 1.0;
+const float YAW_PERIOD = 20.0;
 const float DIST_THRESH = 0.1;
 
 enum State {
@@ -26,16 +28,14 @@ enum State {
 class Commander {
   private:
     State state;
-    geometry_msgs::PoseStamped current_pose, goal_pose;
+    geometry_msgs::PoseStamped current_pose, goal_pose, final_pose;
     visualization_msgs::Marker goals;
 
     mavros_msgs::State px4_state;
     mavros_msgs::SetMode offb_set_mode;
-    mavros_msgs::SetMode tkff_set_mode;
     mavros_msgs::SetMode land_set_mode;
     mavros_msgs::CommandBool arm_cmd;
     mavros_msgs::CommandBool disarm_cmd;
-
 
     ros::NodeHandle nh;
     ros::Rate rate;
@@ -75,7 +75,6 @@ class Commander {
       pose_sub = nh.subscribe("mavros/local_position/pose", 1, &Commander::pose_cb, this);
 
 
-      tkff_set_mode.request.custom_mode = "AUTO.TAKEOFF";
       offb_set_mode.request.custom_mode = "OFFBOARD";
       land_set_mode.request.custom_mode = "AUTO.LAND";
       arm_cmd.request.value = true;
@@ -84,16 +83,31 @@ class Commander {
       goal_pose.pose.position.x = 0;
       goal_pose.pose.position.y = 0;
       goal_pose.pose.position.z = TAKEOFF_ALTITUDE;
+
+      final_pose.pose.position.x = 4;
+      final_pose.pose.position.y = 0;
+      final_pose.pose.position.z = TAKEOFF_ALTITUDE;
+
       start_time = ros::Time::now();
       connect_mavros();
     }
 
 
-
     void explore() {
-      static ros::Time explore_time = ros::Time::now();
-      std::cout << (ros::Time::now() - explore_time).toSec() << std::endl;
-      if(ros::Time::now() - explore_time > ros::Duration(5.0)) {
+      goal_pose = final_pose;
+      static ros::Time explore_start = ros::Time::now();
+      float yaw = 1.57 * sin((ros::Time::now() - explore_start).toSec() * 2 * M_PI / YAW_PERIOD) ;
+      std::cout << "yaw: " << yaw << std::endl;
+      
+      tf2::Quaternion q = tf2::Quaternion(0, 0, yaw);  
+      //std::cout << "x: " << q.x() << " y: " <<  q.y() << " z: " << q.z() << " w: " <<  q.w() << std::endl;
+      goal_pose.pose.orientation.x = q.x();
+      goal_pose.pose.orientation.y = q.y();
+      goal_pose.pose.orientation.z = q.z();
+      goal_pose.pose.orientation.w = q.w();
+
+      std::cout << (ros::Time::now() - explore_start).toSec() << std::endl;
+      if(ros::Time::now() - explore_start > ros::Duration(10.0)) {
         state = LAND;
       }
     }
@@ -105,37 +119,34 @@ class Commander {
           set_mode_client.call(land_set_mode); 
           last_request = ros::Time::now();
         }
-      } else if (current_pose.pose.position.z < DIST_THRESH) {
+      } else if (current_pose.pose.position.z > DIST_THRESH) {
         ROS_INFO("Lowering");
+      } else if (px4_state.armed) {
+        if (ros::Time::now() - last_request > ros::Duration(1.0)) {
+          ROS_INFO("px4 - disarming");
+          arming_client.call(disarm_cmd);
+          last_request = ros::Time::now();
+        }
       } else {
         state = GROUNDED;
       }
     }
 
     void takeoff() {
-      static bool begun_takeoff = false;
-      std::cout << px4_state.mode << std::endl;
-      if (!px4_state.armed) {
-        if (ros::Time::now() - last_request > ros::Duration(1.0)) {
-          ROS_INFO("px4 - arming");
-          arming_client.call(arm_cmd);
-          last_request = ros::Time::now();
-        }
-      } else if (px4_state.mode != "AUTO.TAKEOFF" && px4_state.mode != "AUTO.LOITER" && !begun_takeoff) {
-        if (ros::Time::now() - last_request > ros::Duration(1.0)) {
-          ROS_INFO("px4 - switching to AUTO.TAKEOFF");
-          set_mode_client.call(tkff_set_mode); 
-          last_request = ros::Time::now();
-        }
-      } else if (px4_state.mode == "AUTO.TAKEOFF") {
-        begun_takeoff = true;
-        //Wait
-      } else if (px4_state.mode == "AUTO.LOITER") {
+      if (px4_state.mode != "OFFBOARD") {
         if (ros::Time::now() - last_request > ros::Duration(1.0)) {
           ROS_INFO("px4 - switching to OFFBOARD");
           set_mode_client.call(offb_set_mode); 
           last_request = ros::Time::now();
         }
+      } else if (!px4_state.armed) {
+        if (ros::Time::now() - last_request > ros::Duration(1.0)) {
+          ROS_INFO("px4 - arming");
+          arming_client.call(arm_cmd);
+          last_request = ros::Time::now();
+        }
+      } else if (current_pose.pose.position.z < TAKEOFF_ALTITUDE - DIST_THRESH) {
+        ROS_INFO("Rising");
       } else {
         state = EXPLORE;
       }
