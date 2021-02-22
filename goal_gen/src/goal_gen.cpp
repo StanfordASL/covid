@@ -1,6 +1,7 @@
 #include <ros/ros.h>
 #include <geometry_msgs/Point.h>
 #include <geometry_msgs/PoseStamped.h>
+#include <geometry_msgs/PoseArray.h>
 #include <visualization_msgs/Marker.h>
 #include <utility>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.h>
@@ -34,16 +35,13 @@ using namespace message_filters;
 
 // Initialize publishers
 ros::Publisher pub_goals;
-ros::Publisher pub_handles;
 
 // Initialize transformer
 tf2_ros::Buffer* tfBuffer;
 tf2_ros::TransformListener* tfListener;
 
-std::list<geometry_msgs::Point> goals;
 const float DISTANCE_THRESHOLD = 1.0;
-
-visualization_msgs::Marker goals_msg;
+geometry_msgs::PoseArray goals;
 
 float dist(geometry_msgs::Point& p1, geometry_msgs::Point& p2) {
     float x_diff = p1.x - p2.x;
@@ -51,11 +49,6 @@ float dist(geometry_msgs::Point& p1, geometry_msgs::Point& p2) {
     float z_diff = p1.z - p2.z;
     return sqrt(pow(x_diff, 2) + pow(y_diff, 2) + pow(z_diff, 2));
 }
-
-void goal_cb (const visualization_msgs::MarkerConstPtr& msg)
-{
-}
-
 
 void generate_sub_cloud(const pcl::PointCloud<pcl::PointXYZ>::Ptr input_cloud, pcl::PointCloud<pcl::PointXYZ>::Ptr output_cloud, const darknet_ros_msgs::BoundingBox& box) {
     int width = 640;
@@ -115,16 +108,8 @@ void cloud_cb (const sensor_msgs::PointCloud2ConstPtr& input_cloud, const darkne
     }
     if (full_doors.size() == 0) return;
 
-    // Set up output msgs
-    visualization_msgs::Marker handles;
-    handles.header.frame_id = "map";//input_cloud->header.frame_id;
-    handles.type = 7;
-    handles.color.a = 1.0;
-    handles.color.r = 1.0;
-    handles.action = 0;
-    handles.scale.x = 0.1;
-    handles.scale.y = 0.1;
-    handles.scale.z = 0.1;
+    geometry_msgs::PoseArray new_goals;
+    new_goals.header.frame_id = "map";
 
     // Convert input cloud to pcl
     pcl::PointCloud<pcl::PointXYZ>::Ptr raw_cloud(new pcl::PointCloud<pcl::PointXYZ>); 
@@ -162,34 +147,44 @@ void cloud_cb (const sensor_msgs::PointCloud2ConstPtr& input_cloud, const darkne
 
         // Transform centroid to map frame
         geometry_msgs::PoseStamped p_old;
-        p_old.pose.position.x = handle_centroid.x - coefficients->values[0];
+
+  
+        
+        float pos_dist = pow(handle_centroid.x + coefficients->values[0], 2) + pow(handle_centroid.z + coefficients->values[2], 2);
+        float neg_dist = pow(handle_centroid.x - coefficients->values[0], 2) + pow(handle_centroid.z - coefficients->values[2], 2);
+        //std::cout << "pos: " << pos_dist << "neg: "  << neg_dist << std::endl;
+        float sign = neg_dist > pos_dist ? 1.0 : -1.0;
+        p_old.pose.position.x = handle_centroid.x + sign * coefficients->values[0];
         p_old.pose.position.y = handle_centroid.y;// - coefficients->values[1];
-        p_old.pose.position.z = handle_centroid.z - coefficients->values[2];
+        p_old.pose.position.z = handle_centroid.z + sign * coefficients->values[2];  
+        float yaw = atan2(sign * handle_centroid.z, sign * handle_centroid.x);
+        tf2::Quaternion q = tf2::Quaternion(0, yaw, 0); // Axes shit, just roll with it
+        p_old.pose.orientation.x = q.x();
+        p_old.pose.orientation.y = q.y();
+        p_old.pose.orientation.z = q.z();
+        p_old.pose.orientation.w = q.w();
+
+
         geometry_msgs::PoseStamped p_new;
         p_old.header.frame_id = input_cloud->header.frame_id;     
-        tfBuffer->transform(p_old, p_new, "map", input_cloud->header.stamp, input_cloud->header.frame_id);
-
-
-        handles.points.push_back(p_new.pose.position);
+        tfBuffer->transform(p_old, p_new, "map", input_cloud->header.stamp, input_cloud->header.frame_id); 
+        new_goals.poses.push_back(p_new.pose);
     }
-    pub_handles.publish(handles);
 
-    for (geometry_msgs::Point& handle : handles.points) {
+    for (geometry_msgs::Pose& new_goal : new_goals.poses) {
         bool unique = true;
-        for (geometry_msgs::Point& goal: goals_msg.points) {
-            if (dist(goal, handle) < DISTANCE_THRESHOLD) {
-                goal.x = 0.9 * goal.x + 0.1 * handle.x;
-                goal.y = 0.9 * goal.y + 0.1 * handle.y;
-                goal.z = 0.9 * goal.z + 0.1 * handle.z;
+        for (geometry_msgs::Pose& goal: goals.poses) {
+            if (dist(goal.position, new_goal.position) < DISTANCE_THRESHOLD) {
+                goal = new_goal;
                 unique = false;
             }
         }
         if (unique) {
-            goals_msg.points.push_back(handle);
+            goals.poses.push_back(new_goal);
         }
     }
-    if (goals_msg.points.size() != 0) {
-        pub_goals.publish(goals_msg);
+    if (goals.poses.size() != 0) {
+        pub_goals.publish(goals);
     }
 }
 
@@ -198,18 +193,11 @@ void cloud_cb (const sensor_msgs::PointCloud2ConstPtr& input_cloud, const darkne
 int
 main (int argc, char** argv)
 {
-  goals_msg.header.frame_id = "map";
-  goals_msg.type = 7;
-  goals_msg.color.a = 1.0;
-  goals_msg.color.g = 1.0;
-  goals_msg.action = 0;
-  goals_msg.scale.x = 0.1;
-  goals_msg.scale.y = 0.1;
-  goals_msg.scale.z = 0.1;
-
   // Initialize ROS
   ros::init (argc, argv, "pointcloud_processing");
   ros::NodeHandle nh;
+
+  goals.header.frame_id = "map";
 
   // Initialize subscribers to darknet detection and pointcloud;
   message_filters::Subscriber<sensor_msgs::PointCloud2> sub_image(nh, "d435i/aligned_depth_to_color/points", 1);
@@ -226,8 +214,7 @@ main (int argc, char** argv)
   sync.registerCallback(boost::bind(&cloud_cb, _1, _2));
 
   // Create a ROS publisher for the output handle points
-  pub_handles = nh.advertise<visualization_msgs::Marker> ("goal_gen/handles", 1);
-  pub_goals = nh.advertise<visualization_msgs::Marker> ("goal_gen/goals", 1);
+  pub_goals = nh.advertise<geometry_msgs::PoseArray> ("goal_gen/goals", 1);
 
 
   // Spin

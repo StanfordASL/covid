@@ -151,13 +151,21 @@ Visualization Manager:
       Transport Hint: raw
       Unreliable: false
       Value: true
-    - Class: rviz/Marker
+    - Alpha: 1
+      Arrow Length: 0.30000001192092896
+      Axes Length: 0.30000001192092896
+      Axes Radius: 0.009999999776482582
+      Class: rviz/PoseArray
+      Color: 255; 25; 0
       Enabled: true
-      Marker Topic: /goal_gen/goals
-      Name: Marker
-      Namespaces:
-        "": true
-      Queue Size: 100
+      Head Length: 0.07000000029802322
+      Head Radius: 0.029999999329447746
+      Name: PoseArray
+      Shaft Length: 0.23000000417232513
+      Shaft Radius: 0.009999999776482582
+      Shape: Arrow (Flat)
+      Topic: /goal_gen/goals
+      Unreliable: false
       Value: true
   Enabled: true
   Global Options:
@@ -194,18 +202,18 @@ Visualization Manager:
         Swap Stereo Eyes: false
         Value: false
       Focal Point:
-        X: -1.1240853071212769
-        Y: 0.22954723238945007
-        Z: 1.7225427627563477
+        X: 0.03346225246787071
+        Y: 0.04565225541591644
+        Z: 2.524773120880127
       Focal Shape Fixed Size: true
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 0.41039782762527466
+      Pitch: 0.9653977155685425
       Target Frame: <Fixed Frame>
       Value: Orbit (rviz)
-      Yaw: 1.055397629737854
+      Yaw: 2.8353960514068604
     Saved: ~
 Window Geometry:
   Displays:
@@ -225,5 +233,5 @@ Window Geometry:
   Views:
     collapsed: false
   Width: 3328
-  X: 67
-  Y: 427
+  X: 130
+  Y: 221

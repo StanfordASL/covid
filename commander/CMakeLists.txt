@@ -16,6 +16,7 @@ find_package(catkin REQUIRED COMPONENTS
   #sensor_msgs
   visualization_msgs
   mavros_msgs
+  trajectory_msgs
   #darknet_ros_msgs
   #message_filters
   #tf2_ros
