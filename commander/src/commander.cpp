@@ -13,6 +13,7 @@
 //#include <list>
 #include <cmath>
 #include <mavros_msgs/CommandBool.h>
+#include <mavros_msgs/CommandLong.h>
 #include <mavros_msgs/State.h>
 #include <mavros_msgs/SetMode.h>
 #include <tf2/LinearMath/Quaternion.h>
@@ -64,6 +65,8 @@ class Commander {
     mavros_msgs::SetMode land_set_mode;
     mavros_msgs::CommandBool arm_cmd;
     mavros_msgs::CommandBool disarm_cmd;
+    mavros_msgs::CommandLong spray_on_cmd;
+    mavros_msgs::CommandLong spray_off_cmd;
 
     ros::NodeHandle nh;
     ros::Rate rate;
@@ -72,6 +75,7 @@ class Commander {
     ros::Publisher mavros_pose_pub;
     ros::ServiceClient arming_client;
     ros::ServiceClient set_mode_client;
+    ros::ServiceClient spray_cmd_client;
     ros::Subscriber goals_sub;
     ros::Subscriber traj_sub;
     ros::Time last_request;
@@ -106,6 +110,7 @@ class Commander {
       mavros_pose_pub = nh.advertise<geometry_msgs::PoseStamped> ("mavros/setpoint_position/local", 10);
       arming_client = nh.serviceClient<mavros_msgs::CommandBool> ("mavros/cmd/arming");
       set_mode_client = nh.serviceClient<mavros_msgs::SetMode> ("mavros/set_mode");
+      spray_cmd_client = nh.serviceClient<mavros_msgs::CommandLong>("cmd/command");
       goals_sub = nh.subscribe("goal_gen/goals", 1, &Commander::goals_cb, this);
       traj_sub = nh.subscribe("waypoints", 1, &Commander::traj_cb, this);
 
@@ -113,6 +118,23 @@ class Commander {
       land_set_mode.request.custom_mode = "AUTO.LAND";
       arm_cmd.request.value = true;
       disarm_cmd.request.value = false;
+      spray_on_cmd.request.command = 187;
+      spray_off_cmd.request.command = 187;
+      spray_on_cmd.request.param1 = -1.0;
+      spray_off_cmd.request.param1 = 1.0;
+      spray_on_cmd.request.param2 = -1.0;
+      spray_off_cmd.request.param2 = 1.0;
+      spray_on_cmd.request.param3 = -1.0;
+      spray_off_cmd.request.param3 = 1.0;
+      spray_on_cmd.request.param4 = -1.0;
+      spray_off_cmd.request.param4 = 1.0;
+      spray_on_cmd.request.param5 = -1.0;
+      spray_off_cmd.request.param5 = 1.0;
+      spray_on_cmd.request.param6 = -1.0;
+      spray_off_cmd.request.param6 = 1.0;
+      spray_on_cmd.request.param7 = 0;
+      spray_off_cmd.request.param7 = 0;
+
 
       takeoff_goal.pose.position.x = 0 + X_OFFSET;
       takeoff_goal.pose.position.y = 0;
@@ -180,10 +202,10 @@ class Commander {
       } else {
         if (spray_times.size() == goal_index) {
           spray_times.push_back(ros::Time::now());
-          if (goals.size() > goal_index + 1) {
-            curr_request = goals[goal_index + 1];
+          if (goals.poses.size() > goal_index + 1) {
+            curr_request.pose = goals.poses[goal_index + 1];
           } else {
-            curr_request = final_goal;
+            curr_request.pose = final_goal.pose;
           }
           curr_request_pub.publish(curr_request);
         }
@@ -287,6 +309,18 @@ class Commander {
       
 
     void run() {
+      start_time = ros::Time::now();
+      while (ros::ok()) {
+        if (int((ros::Time::now() - start_time).toSec() / 2.0) % 2 == 0){
+          ROS_INFO("Sprayer On");
+          spray_cmd_client.call(spray_on_cmd);
+        } else {
+          ROS_INFO("Sprayer Off");
+          spray_cmd_client.call(spray_off_cmd);
+        }
+      }
+
+      /*
       prev_state = TAKEOFF;
       state = TAKEOFF;
       start_time = ros::Time::now();
@@ -328,7 +362,8 @@ class Commander {
         ros::spinOnce();
         rate.sleep();
       } 
-    }
+      */
+    } 
 };
 
 
