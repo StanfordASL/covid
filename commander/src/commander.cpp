@@ -2,8 +2,12 @@
 #include <math.h>
 //#include <geometry_msgs/Point.h>
 #include <geometry_msgs/PoseStamped.h>
+#include <geometry_msgs/PoseArray.h>
+#include <geometry_msgs/Pose.h>
+#include <geometry_msgs/TransformStamped.h>
 #include <visualization_msgs/Marker.h>
 #include <algorithm>
+#include <vector>
 //#include <utility>
 //#include <tf2_geometry_msgs/tf2_geometry_msgs.h>
 //#include <list>
@@ -13,14 +17,16 @@
 #include <mavros_msgs/SetMode.h>
 #include <tf2/LinearMath/Quaternion.h>
 #include <trajectory_msgs/MultiDOFJointTrajectory.h>
-
+#include <string>
+#include <tf2_ros/transform_listener.h>
+#include <tf2_geometry_msgs/tf2_geometry_msgs.h>
 
 const float TAKEOFF_ALTITUDE = 1.0;
 const float YAW_PERIOD = 12.0;
-const float DIST_THRESH = 0.1;
+const float DIST_THRESH = 0.15;
 const float Z_OFFSET = 0;//0.06;
 const float X_OFFSET = 0;//-0.10;
-const float MAX_H_SPEED = 0.1;
+const float MAX_H_SPEED = 0.4;
 const float MAX_V_SPEED = 0.4;
 
 
@@ -32,46 +38,57 @@ enum State {
   LAND
 };
 
+const std::vector<char *> state_names{"GROUNDED", "TAKEOFF", "EXPLORE", "SPRY", "LAND"};
+
 template <typename T> T clamp(const T& value, const T& low, const T& high) {
   return value < low ? low : (value > high ? high : value);
 }
 
+float dist(geometry_msgs::Pose a, geometry_msgs::Pose b) {
+  float diffs[3];
+  diffs[0] = abs(a.position.x - b.position.x);
+  diffs[1] = abs(a.position.y - b.position.y);
+  diffs[2] = abs(a.position.z - b.position.z);
+  return sqrt(pow(diffs[0], 2) + pow(diffs[1], 2) + pow(diffs[2], 2));
+}
+
 class Commander {
   private:
-    State state;
-    geometry_msgs::PoseStamped current_pose, goal_pose, final_pose;
-    visualization_msgs::Marker goals;
+    State state, prev_state;
+    geometry_msgs::PoseStamped curr_pose, curr_goal, local_curr_goal, final_goal, curr_request, takeoff_goal;
+    geometry_msgs::PoseArray goals, traj;
+    int goal_index = 0;
 
     mavros_msgs::State px4_state;
     mavros_msgs::SetMode offb_set_mode;
     mavros_msgs::SetMode land_set_mode;
     mavros_msgs::CommandBool arm_cmd;
     mavros_msgs::CommandBool disarm_cmd;
-    trajectory_msgs::MultiDOFJointTrajectory traj;
 
     ros::NodeHandle nh;
     ros::Rate rate;
     ros::Subscriber state_sub;
-    ros::Publisher goal_pose_pub;
+    ros::Publisher curr_request_pub;
     ros::Publisher mavros_pose_pub;
     ros::ServiceClient arming_client;
     ros::ServiceClient set_mode_client;
     ros::Subscriber goals_sub;
-    ros::Subscriber pose_sub;
     ros::Subscriber traj_sub;
-    ros::Time start_time;
     ros::Time last_request;
+    ros::Time explore_start;
+    ros::Time start_time;
+    std::vector<ros::Time> spray_times;
+    tf2_ros::Buffer* tfBuffer;
+    tf2_ros::TransformListener* tfListener;
 
-    void pose_cb (const geometry_msgs::PoseStamped::ConstPtr& msg) {
-      current_pose = *msg;
-    }
-    void goals_cb (const visualization_msgs::Marker::ConstPtr& msg) {
+
+    void goals_cb (const geometry_msgs::PoseArray::ConstPtr& msg) {
       goals = *msg;
     }
     void state_cb (const mavros_msgs::State::ConstPtr& msg) {
       px4_state = *msg;
     }
-    void traj_cb (const trajectory_msgs::MultiDOFJointTrajectory::ConstPtr& msg) {
+    void traj_cb (const geometry_msgs::PoseArray::ConstPtr& msg) {
       traj = *msg;
     }
     
@@ -85,48 +102,111 @@ class Commander {
 
     Commander() : rate(20.0){
       state_sub = nh.subscribe<mavros_msgs::State> ("mavros/state", 10, &Commander::state_cb, this);
-      goal_pose_pub = nh.advertise<geometry_msgs::PoseStamped> ("commander/goal_pose", 10);
+      curr_request_pub = nh.advertise<geometry_msgs::PoseStamped> ("commander/curr_request", 10);
       mavros_pose_pub = nh.advertise<geometry_msgs::PoseStamped> ("mavros/setpoint_position/local", 10);
       arming_client = nh.serviceClient<mavros_msgs::CommandBool> ("mavros/cmd/arming");
       set_mode_client = nh.serviceClient<mavros_msgs::SetMode> ("mavros/set_mode");
       goals_sub = nh.subscribe("goal_gen/goals", 1, &Commander::goals_cb, this);
-      pose_sub = nh.subscribe("mavros/local_position/pose", 1, &Commander::pose_cb, this);
       traj_sub = nh.subscribe("waypoints", 1, &Commander::traj_cb, this);
-
 
       offb_set_mode.request.custom_mode = "OFFBOARD";
       land_set_mode.request.custom_mode = "AUTO.LAND";
       arm_cmd.request.value = true;
       disarm_cmd.request.value = false;
 
-      goal_pose.pose.position.x = 0 + X_OFFSET;
-      goal_pose.pose.position.y = 0;
-      goal_pose.pose.position.z = TAKEOFF_ALTITUDE + Z_OFFSET;
+      takeoff_goal.pose.position.x = 0 + X_OFFSET;
+      takeoff_goal.pose.position.y = 0;
+      takeoff_goal.pose.position.z = TAKEOFF_ALTITUDE + Z_OFFSET;
 
-      final_pose.pose.position.x = 4 + X_OFFSET;
-      final_pose.pose.position.y = 0;
-      final_pose.pose.position.z = TAKEOFF_ALTITUDE + Z_OFFSET;
+      final_goal.pose.position.x = 8 + X_OFFSET;
+      final_goal.pose.position.y = 0;
+      final_goal.pose.position.z = TAKEOFF_ALTITUDE + Z_OFFSET;
 
-      start_time = ros::Time::now();
+      takeoff_goal.header.frame_id = "map";
+
+      curr_request = final_goal; 
+      curr_request_pub.publish(curr_request);
+
       connect_mavros();
+      tfBuffer = new tf2_ros::Buffer;
+      tfListener = new tf2_ros::TransformListener(*tfBuffer);
+
     }
 
 
     void explore() {
-      goal_pose = final_pose;
-      static ros::Time explore_start = ros::Time::now();
+      if (traj.poses.size() > 1) {
+        curr_goal.pose = traj.poses[1];
+      } else if (traj.poses.size() == 1) {
+        ROS_INFO("unexpected size 1 traj");
+      }
       float yaw = 1.3 * sin((ros::Time::now() - explore_start).toSec() * 2 * M_PI / YAW_PERIOD) ;
       tf2::Quaternion q = tf2::Quaternion(0, 0, yaw);  
-      //std::cout << "x: " << q.x() << " y: " <<  q.y() << " z: " << q.z() << " w: " <<  q.w() << std::endl;
-      goal_pose.pose.orientation.x = q.x();
-      goal_pose.pose.orientation.y = q.y();
-      goal_pose.pose.orientation.z = q.z();
-      goal_pose.pose.orientation.w = q.w();
+      curr_goal.pose.orientation.x = q.x();
+      curr_goal.pose.orientation.y = q.y();
+      curr_goal.pose.orientation.z = q.z();
+      curr_goal.pose.orientation.w = q.w();
+      if (goals.poses.size() > goal_index) {
+        curr_request.pose = goals.poses[goal_index];
+        curr_request_pub.publish(curr_request);
+        state = SPRAY;
+      }
+      if (traj.poses.size() == 0 && (ros::Time::now() - explore_start).toSec() > 2.0) {
+        state = LAND;
+        ROS_WARN("No path, landing");
+      }
 
-      if(ros::Time::now() - explore_start > ros::Duration(40.0)) {
+      if(dist(curr_pose.pose, final_goal.pose) < DIST_THRESH || ros::Time::now() - explore_start > ros::Duration(200.0)) {
         state = LAND;
       }
-      
+    }
+
+    void spray() {
+      curr_goal.pose.orientation.x = goals.poses[goal_index].orientation.x;
+      curr_goal.pose.orientation.y = goals.poses[goal_index].orientation.y;
+      curr_goal.pose.orientation.z = goals.poses[goal_index].orientation.z;
+      curr_goal.pose.orientation.w = goals.poses[goal_index].orientation.w;
+      if (traj.poses.size() == 0 && (ros::Time::now() - explore_start).toSec() > 2.0) {
+        state = LAND;
+        ROS_WARN("No path, landing");
+      } 
+       
+      if (dist(goals.poses[goal_index], curr_pose.pose) > DIST_THRESH && spray_times.size() == goal_index) {
+        if (traj.poses.size() > 1) {
+          curr_goal.pose.position = traj.poses[1].position;
+        } else if (traj.poses.size() == 1) {
+          ROS_INFO("unexpected size 1 traj");
+        }
+      } else {
+        if (spray_times.size() == goal_index) {
+          spray_times.push_back(ros::Time::now());
+          if (goals.size() > goal_index + 1) {
+            curr_request = goals[goal_index + 1];
+          } else {
+            curr_request = final_goal;
+          }
+          curr_request_pub.publish(curr_request);
+        }
+        static float prev_t;
+        float t = (ros::Time::now() - spray_times[goal_index]).toSec();
+        if (t < 1.0) {
+          //wait to start
+        } else if (t < 5.0) {
+          if (prev_t < 1.0 ) {
+            ROS_INFO("Turning on sprayer");
+            //turn on sprayer
+          }
+          //spraying
+        } else { 
+          if (prev_t < 5.0) {
+            ROS_INFO("Turning off sprayer");
+            //turn off sprayer
+          }
+          state = EXPLORE;
+          goal_index++;
+        }
+        prev_t = t;
+      } 
     }
 
     void land() {
@@ -137,8 +217,7 @@ class Commander {
           set_mode_client.call(land_set_mode); 
           last_request = ros::Time::now();
         }
-      } else if (current_pose.pose.position.z > DIST_THRESH + Z_OFFSET || (ros::Time::now() - land_start).toSec() < 5.0) {
-        ROS_INFO("Lowering");
+      } else if (curr_pose.pose.position.z > DIST_THRESH + Z_OFFSET || (ros::Time::now() - land_start).toSec() < 5.0) {
       } else if (px4_state.armed) {
         if (ros::Time::now() - last_request > ros::Duration(1.0)) {
           ROS_INFO("px4 - disarming");
@@ -151,6 +230,7 @@ class Commander {
     }
 
     void takeoff() {
+      curr_goal = takeoff_goal;
       if (px4_state.mode != "OFFBOARD") {
         if (ros::Time::now() - last_request > ros::Duration(1.0)) {
           ROS_INFO("px4 - switching to OFFBOARD");
@@ -163,14 +243,11 @@ class Commander {
           arming_client.call(arm_cmd);
           last_request = ros::Time::now();
         }
-      } else if (current_pose.pose.position.z < TAKEOFF_ALTITUDE + Z_OFFSET - DIST_THRESH) {
-        ROS_INFO("Rising");
+      } else if (curr_pose.pose.position.z < TAKEOFF_ALTITUDE + Z_OFFSET - DIST_THRESH) {
       } else {
         state = EXPLORE;
+        explore_start = ros::Time::now();
       }
-    }
-
-    void spray() {
     }
 
     void wait() {
@@ -180,26 +257,26 @@ class Commander {
     void sim_pub_goal() {
       static ros::Time prev_time = ros::Time::now();
       ros::Time curr_time = ros::Time::now();
-      static geometry_msgs::PoseStamped prev_goal = goal_pose;
+      static geometry_msgs::PoseStamped prev_goal = local_curr_goal;
 
       float diffs[3];
-      diffs[0] = abs(goal_pose.pose.position.x - prev_goal.pose.position.x);
-      diffs[1] = abs(goal_pose.pose.position.y - prev_goal.pose.position.y);
-      diffs[2] = abs(goal_pose.pose.position.z - prev_goal.pose.position.z);
+      diffs[0] = abs(local_curr_goal.pose.position.x - prev_goal.pose.position.x);
+      diffs[1] = abs(local_curr_goal.pose.position.y - prev_goal.pose.position.y);
+      diffs[2] = abs(local_curr_goal.pose.position.z - prev_goal.pose.position.z);
       float requested_dist = sqrt(pow(diffs[0], 2) + pow(diffs[1], 2)); 
       float delta_t = (ros::Time::now() - prev_time).toSec();
 
-      geometry_msgs::PoseStamped incremental_pose = goal_pose;
+      geometry_msgs::PoseStamped incremental_pose = local_curr_goal;
       incremental_pose.pose.position.x = clamp(
-          goal_pose.pose.position.x,
+          local_curr_goal.pose.position.x,
           prev_goal.pose.position.x - delta_t * MAX_H_SPEED * diffs[0] / requested_dist,
           prev_goal.pose.position.x + delta_t * MAX_H_SPEED * diffs[0] / requested_dist);
       incremental_pose.pose.position.y = clamp(
-          goal_pose.pose.position.y,
+          local_curr_goal.pose.position.y,
           prev_goal.pose.position.y - delta_t * MAX_H_SPEED * diffs[1] / requested_dist,
           prev_goal.pose.position.y + delta_t * MAX_H_SPEED * diffs[1] / requested_dist);
       incremental_pose.pose.position.z = clamp(
-          goal_pose.pose.position.z,
+          local_curr_goal.pose.position.z,
           prev_goal.pose.position.z - delta_t * MAX_V_SPEED,
           prev_goal.pose.position.z + delta_t * MAX_V_SPEED);
 
@@ -210,9 +287,24 @@ class Commander {
       
 
     void run() {
-      ROS_INFO("here");
+      prev_state = TAKEOFF;
       state = TAKEOFF;
+      start_time = ros::Time::now();
       while(ros::ok()) {
+        ros::spinOnce();
+        rate.sleep();
+
+        if (!tfBuffer->canTransform("map", "base_link", ros::Time(0), 0)) { 
+            ROS_WARN("Transform not yet available");
+            continue;
+        }  
+
+    
+        geometry_msgs::TransformStamped transform_stamped = tfBuffer->lookupTransform("map", "base_link", ros::Time(0), ros::Duration(0));
+        curr_pose.pose.orientation = transform_stamped.transform.rotation;
+        curr_pose.pose.position.x = transform_stamped.transform.translation.x;
+        curr_pose.pose.position.y = transform_stamped.transform.translation.y;
+        curr_pose.pose.position.z = transform_stamped.transform.translation.z;
         if (state == TAKEOFF) {
           takeoff();
         } else if (state == EXPLORE) {
@@ -224,9 +316,15 @@ class Commander {
         } else if (state == GROUNDED) {
           wait();
         }
-        //mavros_pose_pub.publish(goal_pose);
-        sim_pub_goal();
+        if (state != prev_state) {
+          ROS_INFO("Switching to state: %s", state_names[state]);//+ std::string(state_names[state]));
+        }
 
+        tfBuffer->transform(curr_goal, local_curr_goal, "t265_odom_frame");//, ros::Time(0), "map");
+        //mavros_pose_pub.publish(curr_goal);
+        sim_pub_goal();
+        prev_state = state;
+         
         ros::spinOnce();
         rate.sleep();
       } 

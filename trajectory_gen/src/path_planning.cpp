@@ -14,6 +14,7 @@
 #include <nav_msgs/Odometry.h>
 #include <geometry_msgs/Point.h>
 #include <geometry_msgs/PoseStamped.h>
+#include <geometry_msgs/PoseArray.h>
 
 #include <ompl/config.h>
 /*
@@ -44,7 +45,7 @@ class planner {
 public:
     planner(void) {
         om::setLogLevel(om::LOG_NONE);
-        drone_geom = std::shared_ptr<fcl::CollisionGeometryd>(new fcl::Boxd(0.3, 0.3, 0.1));
+        drone_geom = std::shared_ptr<fcl::CollisionGeometryd>(new fcl::Boxd(0.7, 0.7, 0.5));
         tf_listener = new tf2_ros::TransformListener(tf_buffer);
         space = ob::StateSpacePtr(new ob::SE3StateSpace());
         ob::RealVectorBounds bounds(3);
@@ -93,17 +94,16 @@ public:
 
         ob::PlannerStatus solved = plan->solve(2); 
 
-        trajectory_msgs::MultiDOFJointTrajectory msg;
+        geometry_msgs::PoseArray msg;
         if (solved) {
             visualization_msgs::Marker clear;
             clear.action = visualization_msgs::Marker::DELETEALL;
             vis_pub.publish(clear);
 
             og::PathGeometric*  path = pdef->getSolutionPath()->as<og::PathGeometric>();
-            trajectory_msgs::MultiDOFJointTrajectoryPoint point_msg;
+            geometry_msgs::Pose pose;
             msg.header.stamp = ros::Time::now();
             msg.header.frame_id = "map";
-            msg.joint_names.push_back("Drone");
 
             visualization_msgs::Marker path_marker;
             path_marker.header.frame_id = "map";
@@ -122,16 +122,14 @@ public:
                 const ob::SE3StateSpace::StateType *se3state = path->getState(path_idx)->as<ob::SE3StateSpace::StateType>();
                 const ob::RealVectorStateSpace::StateType *pos = se3state->as<ob::RealVectorStateSpace::StateType>(0);
                 const ob::SO3StateSpace::StateType *rot = se3state->as<ob::SO3StateSpace::StateType>(1);
-                point_msg.time_from_start.fromSec(ros::Time::now().toSec());
-                point_msg.transforms.resize(1);
-                point_msg.transforms[0].translation.x = pos->values[0];
-                point_msg.transforms[0].translation.y = pos->values[1];
-                point_msg.transforms[0].translation.z = pos->values[2];
-                point_msg.transforms[0].rotation.x = rot->x;
-                point_msg.transforms[0].rotation.y = rot->y;
-				        point_msg.transforms[0].rotation.z = rot->z;
-                point_msg.transforms[0].rotation.w = rot->w;
-                msg.points.push_back(point_msg);
+                pose.position.x = pos->values[0];
+                pose.position.y = pos->values[1];
+                pose.position.z = pos->values[2];
+                pose.orientation.x = rot->x;
+                pose.orientation.y = rot->y;
+				        pose.orientation.z = rot->z;
+                pose.orientation.w = rot->w;
+                msg.poses.push_back(pose);
 
                 geometry_msgs::Point p;
                 p.x = pos->values[0];
@@ -143,7 +141,6 @@ public:
             vis_pub.publish(path_marker);
             traj_pub.publish(msg);
         } else {
-            std::cout << "No path found" << std::endl;
             traj_pub.publish(msg);
         }
         pdef->clearSolutionPaths();
@@ -156,7 +153,7 @@ public:
     void setGoal(const geometry_msgs::PoseStamped &pose_stamped) {
         goal_pose.position.x = pose_stamped.pose.position.x;
         goal_pose.position.y = pose_stamped.pose.position.y;
-        goal_pose.position.z = 1.0;
+        goal_pose.position.z = pose_stamped.pose.position.z;
     }
 
     void setDronePose(void) {
@@ -249,10 +246,10 @@ int main(int argc, char **argv) {
     ros::NodeHandle nh;
     planner planner_object;
 	  ros::Subscriber octree_sub = nh.subscribe<octomap_msgs::Octomap>("/rtabmap/octomap_binary", 1, boost::bind(&octomapCallback, _1, &planner_object)); 
-    ros::Subscriber goal_sub = nh.subscribe<geometry_msgs::PoseStamped>("/commander/goal_pose", 1, boost::bind(&goalCallback, _1, &planner_object));
+    ros::Subscriber goal_sub = nh.subscribe<geometry_msgs::PoseStamped>("/commander/curr_request", 1, boost::bind(&goalCallback, _1, &planner_object));
 
     vis_pub = nh.advertise<visualization_msgs::Marker>( "visualization_marker", 0 );
-    traj_pub = nh.advertise<trajectory_msgs::MultiDOFJointTrajectory>("waypoints",1);
+    traj_pub = nh.advertise<geometry_msgs::PoseArray>("waypoints",1);
     
     ros::Rate rate(2.0);
     while (ros::ok()) {

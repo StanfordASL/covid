@@ -8,8 +8,8 @@
 
     <node name="rtabmap_slam" pkg="rtabmap_ros" type="rtabmap" args="--delete_db_on_start">
       <param name="odom_frame_id" value="t265_odom_frame"/>
-      <!--param name="odom_tf_angular_variane" value="0.0005"/-->
-      <!--param name="odom_tf_linear_variance" value="0.0001"/-->
+      <param name="odom_tf_angular_variane" value="0.00005"/>
+      <param name="odom_tf_linear_variance" value="0.00001"/>
       <param name="frame_id" value="base_link"/>
       <param name="subscribe_odom_info" value="false"/>
       <param name="visual_odometry" value="false"/>

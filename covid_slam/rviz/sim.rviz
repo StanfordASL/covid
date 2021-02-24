@@ -7,6 +7,8 @@ Panels:
         - /Global Options1
         - /Status1
         - /ColorOccupancyGrid1
+        - /PoseArray1
+        - /TF1/Frames1
       Splitter Ratio: 0.5
     Tree Height: 1105
   - Class: rviz/Selection
@@ -159,13 +161,99 @@ Visualization Manager:
       Color: 255; 25; 0
       Enabled: true
       Head Length: 0.07000000029802322
-      Head Radius: 0.029999999329447746
+      Head Radius: 0.07999999821186066
       Name: PoseArray
       Shaft Length: 0.23000000417232513
-      Shaft Radius: 0.009999999776482582
-      Shape: Arrow (Flat)
+      Shaft Radius: 0.03999999910593033
+      Shape: Arrow (3D)
       Topic: /goal_gen/goals
       Unreliable: false
+      Value: true
+    - Class: rviz/Marker
+      Enabled: true
+      Marker Topic: /visualization_marker
+      Name: Marker
+      Namespaces:
+        path: true
+      Queue Size: 100
+      Value: true
+    - Class: rviz/TF
+      Enabled: true
+      Frame Timeout: 15
+      Frames:
+        All Enabled: false
+        base_link:
+          Value: false
+        base_link_frd:
+          Value: false
+        base_link_inertia:
+          Value: false
+        d435i_bottom_screw_frame:
+          Value: false
+        d435i_color_frame:
+          Value: false
+        d435i_color_optical_frame:
+          Value: false
+        d435i_depth_frame:
+          Value: false
+        d435i_depth_optical_frame:
+          Value: false
+        d435i_link:
+          Value: false
+        imu_link:
+          Value: false
+        map:
+          Value: true
+        map_ned:
+          Value: false
+        odom:
+          Value: false
+        odom_ned:
+          Value: false
+        rotor_0:
+          Value: false
+        rotor_1:
+          Value: false
+        rotor_2:
+          Value: false
+        rotor_3:
+          Value: false
+        t265_odom_frame:
+          Value: true
+      Marker Scale: 1
+      Name: TF
+      Show Arrows: true
+      Show Axes: true
+      Show Names: true
+      Tree:
+        map:
+          map_ned:
+            {}
+          t265_odom_frame:
+            base_link:
+              base_link_frd:
+                {}
+              base_link_inertia:
+                {}
+              d435i_bottom_screw_frame:
+                d435i_link:
+                  d435i_depth_frame:
+                    d435i_color_frame:
+                      d435i_color_optical_frame:
+                        {}
+                    d435i_depth_optical_frame:
+                      {}
+              imu_link:
+                {}
+              rotor_0:
+                {}
+              rotor_1:
+                {}
+              rotor_2:
+                {}
+              rotor_3:
+                {}
+      Update Interval: 0
       Value: true
   Enabled: true
   Global Options:
@@ -195,25 +283,25 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/Orbit
-      Distance: 6.814720153808594
+      Distance: 4.837461948394775
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
         Swap Stereo Eyes: false
         Value: false
       Focal Point:
-        X: 0.03346225246787071
-        Y: 0.04565225541591644
-        Z: 2.524773120880127
+        X: -0.13740375638008118
+        Y: -0.2875034809112549
+        Z: 0.9388329982757568
       Focal Shape Fixed Size: true
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 0.9653977155685425
+      Pitch: 0.3453981578350067
       Target Frame: <Fixed Frame>
       Value: Orbit (rviz)
-      Yaw: 2.8353960514068604
+      Yaw: 3.2553977966308594
     Saved: ~
 Window Geometry:
   Displays:
@@ -234,4 +322,4 @@ Window Geometry:
     collapsed: false
   Width: 3328
   X: 130
-  Y: 221
+  Y: 161

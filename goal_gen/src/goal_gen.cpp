@@ -137,28 +137,22 @@ void cloud_cb (const sensor_msgs::PointCloud2ConstPtr& input_cloud, const darkne
         seg.setDistanceThreshold (0.01);
         seg.setInputCloud (door_cloud);
         seg.segment (*inlier_indices, *coefficients);
-
-
-
-
-        std::cout << coefficients->values[0] << std::endl;
-        std::cout << coefficients->values[1] << std::endl;
-        std::cout << coefficients->values[2] << std::endl << std::endl;
-
         // Transform centroid to map frame
         geometry_msgs::PoseStamped p_old;
 
   
         
         float pos_dist = pow(handle_centroid.x + coefficients->values[0], 2) + pow(handle_centroid.z + coefficients->values[2], 2);
-        float neg_dist = pow(handle_centroid.x - coefficients->values[0], 2) + pow(handle_centroid.z - coefficients->values[2], 2);
+        float neg_dist = pow(handle_centroid.x - coefficients->values[2], 2) + pow(handle_centroid.z - coefficients->values[2], 2);
         //std::cout << "pos: " << pos_dist << "neg: "  << neg_dist << std::endl;
         float sign = neg_dist > pos_dist ? 1.0 : -1.0;
         p_old.pose.position.x = handle_centroid.x + sign * coefficients->values[0];
         p_old.pose.position.y = handle_centroid.y;// - coefficients->values[1];
         p_old.pose.position.z = handle_centroid.z + sign * coefficients->values[2];  
-        float yaw = atan2(sign * handle_centroid.z, sign * handle_centroid.x);
-        tf2::Quaternion q = tf2::Quaternion(0, yaw, 0); // Axes shit, just roll with it
+        float yaw = atan2(-sign * coefficients->values[2], sign * coefficients->values[0]);
+
+
+        tf2::Quaternion q = tf2::Quaternion(yaw, 0, 0); // Axes shit, just roll with it
         p_old.pose.orientation.x = q.x();
         p_old.pose.orientation.y = q.y();
         p_old.pose.orientation.z = q.z();
@@ -181,6 +175,7 @@ void cloud_cb (const sensor_msgs::PointCloud2ConstPtr& input_cloud, const darkne
         }
         if (unique) {
             goals.poses.push_back(new_goal);
+            ROS_INFO("Found a new handle");
         }
     }
     if (goals.poses.size() != 0) {

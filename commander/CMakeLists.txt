@@ -19,7 +19,7 @@ find_package(catkin REQUIRED COMPONENTS
   trajectory_msgs
   #darknet_ros_msgs
   #message_filters
-  #tf2_ros
+  tf2_ros
   geometry_msgs
   #octomap_msgs
   #octomap_ros
