@@ -26,9 +26,9 @@
 const float TAKEOFF_ALTITUDE = 1.0;
 const float YAW_PERIOD = 12.0;
 const float DIST_THRESH = 0.15;
-const float MAX_H_SPEED = 0.4;
+const float MAX_H_SPEED = 0.2;
 const float MAX_V_SPEED = 0.4;
-const float FINAL_GOAL_DIST = 4.0;
+const float FINAL_GOAL_DIST = 6.5;
 const float Z_OFFSET = 0.06;
 const float X_OFFSET = -0.10;
 
@@ -112,7 +112,7 @@ class Commander {
       mavros_pose_pub = nh.advertise<geometry_msgs::PoseStamped> ("mavros/setpoint_position/local", 10);
       arming_client = nh.serviceClient<mavros_msgs::CommandBool> ("mavros/cmd/arming");
       set_mode_client = nh.serviceClient<mavros_msgs::SetMode> ("mavros/set_mode");
-      goals_sub = nh.subscribe("goal_gen/goals", 1, &Commander::goals_cb, this);
+      //goals_sub = nh.subscribe("goal_gen/goals", 1, &Commander::goals_cb, this);
       traj_sub = nh.subscribe("waypoints", 1, &Commander::traj_cb, this);
 
       offb_set_mode.request.custom_mode = "OFFBOARD";
@@ -157,13 +157,11 @@ class Commander {
       curr_goal.pose.orientation.y = q.y();
       curr_goal.pose.orientation.z = q.z();
       curr_goal.pose.orientation.w = q.w();
-      /* // modified
       if (goals.poses.size() > goal_index) {
         curr_request.pose = goals.poses[goal_index];
         curr_request_pub.publish(curr_request);
         state = SPRAY;
       }
-      */
       if (traj.poses.size() == 0 && (ros::Time::now() - explore_start).toSec() > 2.0) {
         state = LAND;
         ROS_WARN("No path, landing");
@@ -299,6 +297,36 @@ class Commander {
     }
       
 
+    void simulate_handles() {
+      int d = int(curr_pose.pose.position.x);
+      if (d > goals.poses.size()) {
+        geometry_msgs::Pose p;
+        if (d % 2 == 0) {
+          p.position.z = 1;
+          p.position.y = 1;
+          p.position.x = d + .5;
+          float yaw = -1.55;
+          tf2::Quaternion q = tf2::Quaternion(0, 0, yaw);  
+          p.orientation.x = q.x();
+          p.orientation.y = q.y();
+          p.orientation.z = q.z();
+          p.orientation.w = q.w();
+        }
+        else {
+          p.position.z = 1;
+          p.position.y = -1;
+          p.position.x = d + .5;
+          float yaw = 1.55;
+          tf2::Quaternion q = tf2::Quaternion(0, 0, yaw);  
+          p.orientation.x = q.x();
+          p.orientation.y = q.y();
+          p.orientation.z = q.z();
+          p.orientation.w = q.w();
+        }
+        goals.poses.push_back(p);
+      }
+    }
+
     void run() {
       prev_state = TAKEOFF;
       state = TAKEOFF;
@@ -333,8 +361,9 @@ class Commander {
           ROS_INFO("Switching to state: %s", state_names[state]);
         }
 
-        tfBuffer->transform(curr_goal, local_curr_goal, "t265_odom_frame");
+        simulate_handles();
 
+        tfBuffer->transform(curr_goal, local_curr_goal, "t265_odom_frame");
         mavros_pose_pub.publish(local_curr_goal);
         //sim_pub_goal();
         prev_state = state;

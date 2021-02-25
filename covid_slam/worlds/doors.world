@@ -40,7 +40,7 @@
       <pose> -5 0 0 0 0 1.57</pose>
     </include-->
 
-    <include>
+    <!--include>
       <uri>model://fire_truck</uri>
       <pose> 5 -3.5 0 0 0 1.57</pose>
     </include>
@@ -48,7 +48,7 @@
     <include>
       <uri>model://fire_truck</uri>
       <pose> 5 3.5 0 0 0 1.57</pose>
-    </include>
+    </include-->
 
 
     <physics name='default_physics' default='0' type='ode'>
