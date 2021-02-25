@@ -28,7 +28,7 @@ const float YAW_PERIOD = 12.0;
 const float DIST_THRESH = 0.15;
 const float MAX_H_SPEED = 0.4;
 const float MAX_V_SPEED = 0.4;
-const float FINAL_GOAL_DIST = 2.0;
+const float FINAL_GOAL_DIST = 4.0;
 const float Z_OFFSET = 0.06;
 const float X_OFFSET = -0.10;
 
@@ -104,6 +104,9 @@ class Commander {
     }
 
     Commander() : rate(20.0){
+      tfBuffer = new tf2_ros::Buffer;
+      tfListener = new tf2_ros::TransformListener(*tfBuffer);
+
       state_sub = nh.subscribe<mavros_msgs::State> ("mavros/state", 10, &Commander::state_cb, this);
       curr_request_pub = nh.advertise<geometry_msgs::PoseStamped> ("commander/curr_request", 10);
       mavros_pose_pub = nh.advertise<geometry_msgs::PoseStamped> ("mavros/setpoint_position/local", 10);
@@ -117,22 +120,23 @@ class Commander {
       arm_cmd.request.value = true;
       disarm_cmd.request.value = false;
 
-      takeoff_goal.pose.position.x = 0;
+      takeoff_goal.header.frame_id = "map";
+      takeoff_goal.pose.position.x = 0 + X_OFFSET;
       takeoff_goal.pose.position.y = 0;
-      takeoff_goal.pose.position.z = TAKEOFF_ALTITUDE;
+      takeoff_goal.pose.position.z = TAKEOFF_ALTITUDE + Z_OFFSET;
 
+      final_goal.header.frame_id = "map";
       final_goal.pose.position.x = FINAL_GOAL_DIST + X_OFFSET;
       final_goal.pose.position.y = 0;
       final_goal.pose.position.z = TAKEOFF_ALTITUDE + Z_OFFSET;
 
       takeoff_goal.header.frame_id = "map";
 
+      connect_mavros();
+
       curr_request = final_goal; 
       curr_request_pub.publish(curr_request);
-
-      connect_mavros();
-      tfBuffer = new tf2_ros::Buffer;
-      tfListener = new tf2_ros::TransformListener(*tfBuffer);
+      ROS_INFO("Publishing Request");
 
     }
 
@@ -330,6 +334,7 @@ class Commander {
         }
 
         tfBuffer->transform(curr_goal, local_curr_goal, "t265_odom_frame");
+
         mavros_pose_pub.publish(local_curr_goal);
         //sim_pub_goal();
         prev_state = state;
