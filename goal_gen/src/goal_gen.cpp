@@ -40,7 +40,10 @@ ros::Publisher pub_goals;
 tf2_ros::Buffer* tfBuffer;
 tf2_ros::TransformListener* tfListener;
 
-const float DISTANCE_THRESHOLD = 1.0;
+const float DISTANCE_THRESHOLD = 0.75;
+const float ANGLE_THRESHOLD = 1;
+const float SPRAY_DISTANCE = 0.9;
+const float GROUND_OFFSET = 0.44;
 geometry_msgs::PoseArray goals;
 
 float dist(geometry_msgs::Point& p1, geometry_msgs::Point& p2) {
@@ -138,37 +141,63 @@ void cloud_cb (const sensor_msgs::PointCloud2ConstPtr& input_cloud, const darkne
         seg.setInputCloud (door_cloud);
         seg.segment (*inlier_indices, *coefficients);
         // Transform centroid to map frame
-        geometry_msgs::PoseStamped p_old;
+        geometry_msgs::PoseStamped p_old_neg, p_old_pos;
 
   
-        
-        float pos_dist = pow(handle_centroid.x + coefficients->values[0], 2) + pow(handle_centroid.z + coefficients->values[2], 2);
-        float neg_dist = pow(handle_centroid.x - coefficients->values[2], 2) + pow(handle_centroid.z - coefficients->values[2], 2);
-        //std::cout << "pos: " << pos_dist << "neg: "  << neg_dist << std::endl;
-        float sign = neg_dist > pos_dist ? 1.0 : -1.0;
-        p_old.pose.position.x = handle_centroid.x + sign * coefficients->values[0];
-        p_old.pose.position.y = handle_centroid.y;// - coefficients->values[1];
-        p_old.pose.position.z = handle_centroid.z + sign * coefficients->values[2];  
+        float sign = 1.0; 
+        p_old_pos.pose.position.x = handle_centroid.x + SPRAY_DISTANCE * sign * coefficients->values[0];
+        p_old_pos.pose.position.y = handle_centroid.y;// - coefficients->values[1];
+        p_old_pos.pose.position.z = handle_centroid.z + SPRAY_DISTANCE * sign * coefficients->values[2];  
         float yaw = atan2(-sign * coefficients->values[2], sign * coefficients->values[0]);
-
-
         tf2::Quaternion q = tf2::Quaternion(yaw, 0, 0); // Axes shit, just roll with it
-        p_old.pose.orientation.x = q.x();
-        p_old.pose.orientation.y = q.y();
-        p_old.pose.orientation.z = q.z();
-        p_old.pose.orientation.w = q.w();
+        p_old_pos.pose.orientation.x = q.x();
+        p_old_pos.pose.orientation.y = q.y();
+        p_old_pos.pose.orientation.z = q.z();
+        p_old_pos.pose.orientation.w = q.w();
+        sign = -1.0;
+        p_old_neg.pose.position.x = handle_centroid.x + SPRAY_DISTANCE * sign * coefficients->values[0];
+        p_old_neg.pose.position.y = handle_centroid.y;// - coefficients->values[1];
+        p_old_neg.pose.position.z = handle_centroid.z + SPRAY_DISTANCE * sign * coefficients->values[2];  
+        yaw = atan2(-sign * coefficients->values[2], sign * coefficients->values[0]);
+        q = tf2::Quaternion(yaw, 0, 0); // Axes shit, just roll with it
+        p_old_neg.pose.orientation.x = q.x();
+        p_old_neg.pose.orientation.y = q.y();
+        p_old_neg.pose.orientation.z = q.z();
+        p_old_neg.pose.orientation.w = q.w();
 
 
-        geometry_msgs::PoseStamped p_new;
-        p_old.header.frame_id = input_cloud->header.frame_id;     
-        tfBuffer->transform(p_old, p_new, "map", input_cloud->header.stamp, input_cloud->header.frame_id); 
-        new_goals.poses.push_back(p_new.pose);
+        geometry_msgs::PoseStamped p_new_pos, p_new_neg, p_new;
+        p_old_pos.header.frame_id = input_cloud->header.frame_id;     
+        p_old_neg.header.frame_id = input_cloud->header.frame_id;     
+
+
+        tfBuffer->transform(p_old_pos, p_new_pos, "map", input_cloud->header.stamp, input_cloud->header.frame_id); 
+        tfBuffer->transform(p_old_neg, p_new_neg, "map", input_cloud->header.stamp, input_cloud->header.frame_id); 
+
+
+        p_new = abs(p_new_pos.pose.position.y) < abs(p_new_neg.pose.position.y) ? p_new_pos : p_new_neg;
+
+        if (abs(.92 - p_new.pose.position.z - GROUND_OFFSET) < .25) {
+            p_new.pose.position.z += .18;
+            new_goals.poses.push_back(p_new.pose);
+        }
     }
 
+    //tf2::Quaternion identity(0, 0, 0);
     for (geometry_msgs::Pose& new_goal : new_goals.poses) {
+
+        //tf2::Quaternion q = tf2::Quaternion(new_goal.orientation.x, new_goal.orientation.y, new_goal.orientation.z, new_goal.orientation.w);
+        //float angle = identity.angleShortestPath(q);
+        //std::cout << angle << std::endl;
+        //if ( angle > 1.55 + .3 || angle < 1.55 - .3)  {
+        //    continue; //bogus?
+        //}
+
         bool unique = true;
         for (geometry_msgs::Pose& goal: goals.poses) {
-            if (dist(goal.position, new_goal.position) < DISTANCE_THRESHOLD) {
+            tf2::Quaternion q1(goal.orientation.x, goal.orientation.y, goal.orientation.z, goal.orientation.w);
+            tf2::Quaternion q2(new_goal.orientation.x, new_goal.orientation.y, new_goal.orientation.z, new_goal.orientation.w);
+            if (dist(goal.position, new_goal.position) < DISTANCE_THRESHOLD && q1.angleShortestPath(q2) < ANGLE_THRESHOLD) {
                 goal = new_goal;
                 unique = false;
             }

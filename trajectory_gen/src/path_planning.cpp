@@ -49,16 +49,16 @@ public:
         tf_listener = new tf2_ros::TransformListener(tf_buffer);
         space = ob::StateSpacePtr(new ob::SE3StateSpace());
         ob::RealVectorBounds bounds(3);
-        bounds.setLow(0, -10);
+        bounds.setLow(0, -1);
         bounds.setHigh(0, 10);
-        bounds.setLow(1, -10);
-        bounds.setHigh(1, 10);
-        bounds.setLow(2, .5);
-        bounds.setHigh(2, 2);
+        bounds.setLow(1, -4);
+        bounds.setHigh(1, 4);
+        bounds.setLow(2, 0);
+        bounds.setHigh(2, 1.2);
         space->as<ob::SE3StateSpace>()->setBounds(bounds);
         goal_pose.position.x = 0;
         goal_pose.position.y = 0;
-        goal_pose.position.z = 1.0;
+        goal_pose.position.z = 0.7;
 
         si = std::make_shared<ob::SpaceInformation>(space);
         si->setStateValidityChecker(std::bind(&planner::isStateValid, this, std::placeholders::_1));
@@ -70,9 +70,9 @@ public:
     ~planner() {}
 
     void plan() {
+
         pdef->clearGoal();
         pdef->clearStartStates();
-
 
         setDronePose();
         ob::ScopedState<ob::SE3StateSpace> start(space);
@@ -88,11 +88,16 @@ public:
 
         pdef->setStartAndGoalStates(start, goal);
 
+        og::InformedRRTstar* solver = new og::InformedRRTstar(si);
+
         ob::PlannerPtr plan(new og::InformedRRTstar(si));
         plan->setProblemDefinition(pdef);
         plan->setup();
 
+        ros::Time start_time = ros::Time::now();
         ob::PlannerStatus solved = plan->solve(2); 
+        //std::cout << (ros::Time::now() - start_time).toSec() << std::endl;
+
 
         geometry_msgs::PoseArray msg;
         if (solved) {
