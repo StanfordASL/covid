@@ -44,6 +44,9 @@ const float DISTANCE_THRESHOLD = 0.75;
 const float ANGLE_THRESHOLD = 1;
 const float SPRAY_DISTANCE = 0.9;
 const float GROUND_OFFSET = 0.44;
+const float HANDLE_HEIGHT = .92;
+const float HEIGHT_TOLERANCE = .25;
+const float HEIGHT_OFFSET = .18;
 geometry_msgs::PoseArray goals;
 
 float dist(geometry_msgs::Point& p1, geometry_msgs::Point& p2) {
@@ -177,8 +180,8 @@ void cloud_cb (const sensor_msgs::PointCloud2ConstPtr& input_cloud, const darkne
 
         p_new = abs(p_new_pos.pose.position.y) < abs(p_new_neg.pose.position.y) ? p_new_pos : p_new_neg;
 
-        if (abs(.92 - p_new.pose.position.z - GROUND_OFFSET) < .25) {
-            p_new.pose.position.z += .18;
+        if (abs(HANDLE_HEIGHT - p_new.pose.position.z - GROUND_OFFSET) < HEIGHT_TOLERANCE) {
+            p_new.pose.position.z += HEIGHT_OFFSET;
             new_goals.poses.push_back(p_new.pose);
         }
     }

@@ -28,12 +28,12 @@ const float FLOOR_OFFSET = 0.35;
 const float YAW_PERIOD = 30.0;
 const float YAW_MAX = 1.1;
 const float DIST_THRESH = 0.1;
-const float MAX_H_SPEED = 0.2;
 const float MAX_V_SPEED = 0.4;
 const float FINAL_GOAL_DIST = 6;
 const float Z_OFFSET = 0.06;
 const float X_OFFSET = -0.10;
 const float YAW_STEP = 0.03;
+const float CRITICAL_THRESH = 1.0;
 
 
 enum State {
@@ -41,7 +41,8 @@ enum State {
   TAKEOFF,
   EXPLORE,
   SPRAY,
-  LAND
+  LAND,
+  CRITICAL
 };
 
 const std::vector<char *> state_names{"GROUNDED", "TAKEOFF", "EXPLORE", "SPRY", "LAND"};
@@ -62,7 +63,7 @@ class Commander {
   private:
     State state, prev_state;
     geometry_msgs::PoseStamped curr_pose, curr_goal, local_curr_goal, final_goal, curr_request, takeoff_goal;
-    float curr_yaw, request_yaw;
+    float curr_yaw, request_yaw, curr_goal_yaw, max_h_speed;
     geometry_msgs::PoseArray goals, traj;
     int goal_index = 0;
 
@@ -135,6 +136,7 @@ class Commander {
       spray_off.controls[5] = -100000;
       curr_yaw = 0;
       request_yaw = 0;
+      max_h_speed = 0.2;
 
       offb_set_mode.request.custom_mode = "OFFBOARD";
       land_set_mode.request.custom_mode = "AUTO.LAND";
@@ -162,6 +164,17 @@ class Commander {
 
 
     void explore() {
+      static bool triggered = false;
+      if (abs(curr_pose.pose.position.y) > CRITICAL_THRESH || triggered) {
+        curr_goal.pose.position.y = 0; 
+        ROS_INFO("Critical thresh triggered, retreating to center asap");
+        return;
+      }
+      if (abs(curr_pose.pose.position.y) < CRITICAL_THRESH / 2.0) {
+        ROS_INFO("Critical thresh untriggered");
+        triggered = false;
+      }
+
       if (traj.poses.size() > 1) {
         curr_goal.pose = traj.poses[1];
         curr_goal.pose.position.z = TAKEOFF_ALTITUDE + Z_OFFSET - FLOOR_OFFSET;
@@ -192,15 +205,14 @@ class Commander {
     }
 
     void spray() {
-      tf2::Quaternion q(goals.poses[goal_index].orientation.x, goals.poses[goal_index].orientation.y, goals.poses[goal_index].orientation.z, goals.poses[goal_index].orientation.w);
-      request_yaw = quat_to_yaw(q);
-
       if (traj.poses.size() == 0 && (ros::Time::now() - explore_start).toSec() > 2.0) {
         state = LAND;
         ROS_WARN("No path, landing");
       } 
        
-      if (dist(goals.poses[goal_index], curr_pose.pose) > DIST_THRESH && spray_times.size() == goal_index) {
+      float dist_to_handle = dist(goals.poses[goal_index], curr_pose.pose);
+      if (spray_times.size() == goal_index && dist_to_handle > DIST_THRESH) {
+        // We are far from correct position
         if (traj.poses.size() > 1) {
           curr_goal.pose.position = traj.poses[1].position;
         } else if (traj.poses.size() == 1) {
@@ -208,7 +220,21 @@ class Commander {
         }
         curr_request.pose = goals.poses[goal_index];
         curr_request_pub.publish(curr_request);
+        if (dist_to_handle > 1.0) { 
+          curr_goal.pose.position.y = clamp(curr_goal.pose.position.y, -abs(curr_goal.pose.position.y) + .2, abs(curr_goal.pose.position.y) - .2);
+          max_h_speed = 0.4;
+          float diffs[3];
+          diffs[0] = abs(goals.poses[goal_index].position.x - curr_pose.pose.position.x);
+          diffs[1] = abs(goals.poses[goal_index].position.y - curr_pose.pose.position.y);
+          diffs[2] = abs(goals.poses[goal_index].position.z - curr_pose.pose.position.z);
+          request_yaw = atan2(diffs[1], diffs[0]);
+        } else {
+          max_h_speed = 0.2;
+          tf2::Quaternion q(goals.poses[goal_index].orientation.x, goals.poses[goal_index].orientation.y, goals.poses[goal_index].orientation.z, goals.poses[goal_index].orientation.w);
+          request_yaw = quat_to_yaw(q);
+        }
       } else {
+        // In approximate spray position
         if (spray_times.size() == goal_index) {
           spray_times.push_back(ros::Time::now());
           if (goals.poses.size() > goal_index + 1) {
@@ -218,9 +244,12 @@ class Commander {
           }
           curr_request_pub.publish(curr_request);
         }
-        static float prev_t;
+        static float prev_t = 0;
         float t = (ros::Time::now() - spray_times[goal_index]).toSec();
         if (t < 2.0) {
+          if (prev_t == 0) {
+            ROS_INFO("Waiting to stablalize spraying position");
+          }
           //wait to start
         } else if (t < 6.0) {
           if (prev_t < 2.5 ) {
@@ -229,12 +258,14 @@ class Commander {
           }
           //spraying
         } else if (t < 10.0){ 
+          max_h_speed = 0.4;
           if (prev_t < 6.5) {
             ROS_INFO("Turning off sprayer");
             spray_pub.publish(spray_off);
           }
           curr_goal.pose.position.y = 0;
         } else {
+          max_h_speed = 0.2;
           state = EXPLORE;
           goal_index++;
         }
@@ -303,12 +334,12 @@ class Commander {
       geometry_msgs::PoseStamped incremental_pose = local_curr_goal;
       incremental_pose.pose.position.x = clamp(
           local_curr_goal.pose.position.x,
-          prev_goal.pose.position.x - delta_t * MAX_H_SPEED * diffs[0] / requested_dist,
-          prev_goal.pose.position.x + delta_t * MAX_H_SPEED * diffs[0] / requested_dist);
+          prev_goal.pose.position.x - delta_t * max_h_speed * diffs[0] / requested_dist,
+          prev_goal.pose.position.x + delta_t * max_h_speed * diffs[0] / requested_dist);
       incremental_pose.pose.position.y = clamp(
           local_curr_goal.pose.position.y,
-          prev_goal.pose.position.y - delta_t * MAX_H_SPEED * diffs[1] / requested_dist,
-          prev_goal.pose.position.y + delta_t * MAX_H_SPEED * diffs[1] / requested_dist);
+          prev_goal.pose.position.y - delta_t * max_h_speed * diffs[1] / requested_dist,
+          prev_goal.pose.position.y + delta_t * max_h_speed * diffs[1] / requested_dist);
       incremental_pose.pose.position.z = clamp(
           local_curr_goal.pose.position.z,
           prev_goal.pose.position.z - delta_t * MAX_V_SPEED,
@@ -371,11 +402,8 @@ class Commander {
         curr_pose.pose.position.y = transform_stamped.transform.translation.y;
         curr_pose.pose.position.z = transform_stamped.transform.translation.z;
 
-        /*
-        if (goals.poses.size() > 0) {
-        std::cout << "x: " << curr_pose.pose.position.x - goals.poses[0].position.x << "y: " << curr_pose.pose.position.y - goals.poses[0].position.y << "z: " << curr_pose.pose.position.z - goals.poses[0].position.z << std::endl;
-        }
-        */
+
+
 
         if (state == TAKEOFF) {
           takeoff();
@@ -388,6 +416,9 @@ class Commander {
         } else if (state == GROUNDED) {
           wait();
         }
+
+        
+
         if (state != prev_state) {
           ROS_INFO("Switching to state: %s", state_names[state]);
         }
@@ -402,10 +433,8 @@ class Commander {
 
 
         tfBuffer->transform(curr_goal, local_curr_goal, "t265_odom_frame");
-        mavros_pose_pub.publish(local_curr_goal);
-        
-
-        //sim_pub_goal();
+        //mavros_pose_pub.publish(local_curr_goal); 
+        sim_pub_goal();
         prev_state = state;
          
       } 

@@ -1,0 +1,15 @@
+<?xml version="1.0"?>
+<launch>
+  <group ns="octomap">
+    <node pkg="tf2_ros" type="static_transform_publisher" name="odom_is_map" args="0 0 0 0 0 0 1 map t265_odom_frame"/>
+
+    <node pkg="octomap_server" type="octomap_server_node" name="octomap_server">
+      <param name="resolution" value="0.05"/>
+      <param name="frame_id" type="string" value="map"/>
+      <param name="sensor_model/max_range" value="5.0"/>
+      <remap from="cloud_in" to="/d435i/aligned_depth_to_color/points"/>
+    </node>
+  </group>
+</launch>
+
+

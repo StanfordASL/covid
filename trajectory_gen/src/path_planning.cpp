@@ -45,7 +45,7 @@ class planner {
 public:
     planner(void) {
         om::setLogLevel(om::LOG_NONE);
-        drone_geom = std::shared_ptr<fcl::CollisionGeometryd>(new fcl::Boxd(0.7, 0.7, 0.5));
+        drone_geom = std::shared_ptr<fcl::CollisionGeometryd>(new fcl::Boxd(0.8, 0.8, 0.6));
         tf_listener = new tf2_ros::TransformListener(tf_buffer);
         space = ob::StateSpacePtr(new ob::SE3StateSpace());
         ob::RealVectorBounds bounds(3);
@@ -54,7 +54,7 @@ public:
         bounds.setLow(1, -4);
         bounds.setHigh(1, 4);
         bounds.setLow(2, 0);
-        bounds.setHigh(2, 1.2);
+        bounds.setHigh(2, 2);
         space->as<ob::SE3StateSpace>()->setBounds(bounds);
         goal_pose.position.x = 0;
         goal_pose.position.y = 0;
@@ -233,8 +233,8 @@ private:
 
 void octomapCallback(const octomap_msgs::Octomap::ConstPtr &msg, planner* planner_ptr)
 {
-	  octomap::ColorOcTree* octomap_tree = dynamic_cast<octomap::ColorOcTree*>(octomap_msgs::msgToMap(*msg));
-	  fcl::OcTreed* fcl_tree = new fcl::OcTreed(std::shared_ptr<const octomap::ColorOcTree>(octomap_tree));
+	  octomap::OcTree* octomap_tree = dynamic_cast<octomap::OcTree*>(octomap_msgs::msgToMap(*msg));
+	  fcl::OcTreed* fcl_tree = new fcl::OcTreed(std::shared_ptr<const octomap::OcTree>(octomap_tree));
     planner_ptr->setMap(std::shared_ptr<fcl::CollisionGeometryd>(fcl_tree));
 }
 
@@ -250,7 +250,7 @@ int main(int argc, char **argv) {
     ros::init(argc, argv, "path_planner");
     ros::NodeHandle nh;
     planner planner_object;
-	  ros::Subscriber octree_sub = nh.subscribe<octomap_msgs::Octomap>("/rtabmap/octomap_binary", 1, boost::bind(&octomapCallback, _1, &planner_object)); 
+	  ros::Subscriber octree_sub = nh.subscribe<octomap_msgs::Octomap>("/octomap/octomap_binary", 1, boost::bind(&octomapCallback, _1, &planner_object)); 
     ros::Subscriber goal_sub = nh.subscribe<geometry_msgs::PoseStamped>("/commander/curr_request", 1, boost::bind(&goalCallback, _1, &planner_object));
 
     vis_pub = nh.advertise<visualization_msgs::Marker>( "visualization_marker", 0 );

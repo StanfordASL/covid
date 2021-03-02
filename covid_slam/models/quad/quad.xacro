@@ -11,6 +11,15 @@
     </visual>
   </link>
 
+
+  <!--link name="t265_odom_frame"/>
+  <link name="map"/>
+  <joint name="t265_is_map" type="fixed">
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+    <parent link="map"/>
+    <child link="t265_odom_frame"/>
+  </joint-->
+
   <link name="t265_pose_frame"/>
 
   <joint name="t265_joint" type="fixed">
