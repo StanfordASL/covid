@@ -24,17 +24,18 @@
 #include <tf2_geometry_msgs/tf2_geometry_msgs.h>
 
 const float TAKEOFF_ALTITUDE = 0.9;
-const float FLOOR_OFFSET = 0.35;
+const float FLOOR_OFFSET = 0;//0.35;
 const float YAW_PERIOD = 30.0;
 const float YAW_MAX = 1.1;
 const float DIST_THRESH = 0.1;
 const float MAX_V_SPEED = 0.4;
-const float FINAL_GOAL_DIST = 6;
+const float FINAL_GOAL_DIST = 4.5;
 const float Z_OFFSET = 0.06;
 const float X_OFFSET = -0.10;
 const float YAW_STEP = 0.03;
-const float CRITICAL_THRESH = 1.0;
-
+const float CRITICAL_THRESH = 0.3;
+const float SLOW_H_SPEED = 0.15;
+const float FAST_H_SPEED = 0.3;
 
 enum State {
   GROUNDED,
@@ -42,7 +43,8 @@ enum State {
   EXPLORE,
   SPRAY,
   LAND,
-  CRITICAL
+  CRITICAL,
+  WAIT
 };
 
 const std::vector<char *> state_names{"GROUNDED", "TAKEOFF", "EXPLORE", "SPRY", "LAND"};
@@ -61,11 +63,12 @@ float dist(geometry_msgs::Pose a, geometry_msgs::Pose b) {
 
 class Commander {
   private:
-    State state, prev_state;
-    geometry_msgs::PoseStamped curr_pose, curr_goal, local_curr_goal, final_goal, curr_request, takeoff_goal;
+    State state, prev_state, next_state;
+    geometry_msgs::PoseStamped curr_pose, curr_goal, local_curr_goal, final_goal, curr_request, takeoff_goal, wait_pose;
     float curr_yaw, request_yaw, curr_goal_yaw, max_h_speed;
     geometry_msgs::PoseArray goals, traj;
-    int goal_index = 0;
+    int goal_index;
+    bool wait_for_path;
 
     mavros_msgs::State px4_state;
     mavros_msgs::SetMode offb_set_mode;
@@ -136,7 +139,9 @@ class Commander {
       spray_off.controls[5] = -100000;
       curr_yaw = 0;
       request_yaw = 0;
-      max_h_speed = 0.2;
+      max_h_speed = SLOW_H_SPEED;
+      goal_index = 0;
+      wait_for_path = false;
 
       offb_set_mode.request.custom_mode = "OFFBOARD";
       land_set_mode.request.custom_mode = "AUTO.LAND";
@@ -165,16 +170,23 @@ class Commander {
 
     void explore() {
       static bool triggered = false;
-      if (abs(curr_pose.pose.position.y) > CRITICAL_THRESH || triggered) {
+      static bool triggered_prev = false;
+      if (abs(curr_pose.pose.position.y) > CRITICAL_THRESH || 
+          (abs(curr_pose.pose.position.y) < CRITICAL_THRESH && triggered)) {
         curr_goal.pose.position.y = 0; 
-        ROS_INFO("Critical thresh triggered, retreating to center asap");
+        if (!triggered_prev) {
+          ROS_INFO("Critical thresh triggered, retreating to center asap");
+        }
+        triggered = true;
         return;
       }
       if (abs(curr_pose.pose.position.y) < CRITICAL_THRESH / 2.0) {
-        ROS_INFO("Critical thresh untriggered");
+        if (triggered_prev) {
+          ROS_INFO("Critical thresh untriggered");
+        }
         triggered = false;
       }
-
+      triggered_prev = triggered;
       if (traj.poses.size() > 1) {
         curr_goal.pose = traj.poses[1];
         curr_goal.pose.position.z = TAKEOFF_ALTITUDE + Z_OFFSET - FLOOR_OFFSET;
@@ -185,12 +197,15 @@ class Commander {
         ROS_WARN("No path, landing");
       }
 
+
       request_yaw = YAW_MAX * sin((ros::Time::now() - explore_start).toSec() * 2 * M_PI / YAW_PERIOD) ;
 
       if (goals.poses.size() > goal_index) { //modified
         curr_request.pose = goals.poses[goal_index];
         curr_request_pub.publish(curr_request);
-        state = SPRAY;
+        state = WAIT;
+        next_state = SPRAY;
+        wait_pose = curr_pose;
       } else {
         curr_request_pub.publish(curr_request);
       }
@@ -203,6 +218,23 @@ class Commander {
         state = LAND;
       }
     }
+
+    void wait() {
+      curr_goal.pose = wait_pose.pose;  
+      if (traj.poses.size() > 1) {
+        if (curr_request.pose.position.x == traj.poses.back().position.x &&
+         curr_request.pose.position.y == traj.poses.back().position.y &&
+         curr_request.pose.position.z == traj.poses.back().position.z) {
+            state = next_state;
+        }
+      } else if (traj.poses.size() == 1) {
+        ROS_INFO("unexpected size 1 traj");
+      } else if (traj.poses.size() == 0 && (ros::Time::now() - explore_start).toSec() > 2.0) {
+        state = LAND;
+        ROS_WARN("No path, landing");
+      }
+    }
+
 
     void spray() {
       if (traj.poses.size() == 0 && (ros::Time::now() - explore_start).toSec() > 2.0) {
@@ -220,16 +252,16 @@ class Commander {
         }
         curr_request.pose = goals.poses[goal_index];
         curr_request_pub.publish(curr_request);
-        if (dist_to_handle > 1.0) { 
-          curr_goal.pose.position.y = clamp(curr_goal.pose.position.y, -abs(curr_goal.pose.position.y) + .2, abs(curr_goal.pose.position.y) - .2);
-          max_h_speed = 0.4;
+        if (dist_to_handle > 1.2) { 
+          curr_goal.pose.position.y = clamp(curr_goal.pose.position.y, -abs(curr_goal.pose.position.y) + .3, abs(curr_goal.pose.position.y) - .3);
+          max_h_speed = FAST_H_SPEED;
           float diffs[3];
           diffs[0] = abs(goals.poses[goal_index].position.x - curr_pose.pose.position.x);
           diffs[1] = abs(goals.poses[goal_index].position.y - curr_pose.pose.position.y);
           diffs[2] = abs(goals.poses[goal_index].position.z - curr_pose.pose.position.z);
           request_yaw = atan2(diffs[1], diffs[0]);
         } else {
-          max_h_speed = 0.2;
+          max_h_speed = SLOW_H_SPEED;
           tf2::Quaternion q(goals.poses[goal_index].orientation.x, goals.poses[goal_index].orientation.y, goals.poses[goal_index].orientation.z, goals.poses[goal_index].orientation.w);
           request_yaw = quat_to_yaw(q);
         }
@@ -252,22 +284,24 @@ class Commander {
           }
           //wait to start
         } else if (t < 6.0) {
-          if (prev_t < 2.5 ) {
+          if (prev_t < 2.2 ) {
             ROS_INFO("Turning on sprayer");
             spray_pub.publish(spray_on);
           }
           //spraying
         } else if (t < 10.0){ 
-          max_h_speed = 0.4;
-          if (prev_t < 6.5) {
+          max_h_speed = FAST_H_SPEED;
+          if (prev_t < 6.2) {
             ROS_INFO("Turning off sprayer");
             spray_pub.publish(spray_off);
           }
           curr_goal.pose.position.y = 0;
         } else {
-          max_h_speed = 0.2;
-          state = EXPLORE;
+          max_h_speed = SLOW_H_SPEED;
           goal_index++;
+          state = WAIT;
+          next_state = EXPLORE;
+          wait_pose = curr_pose;
         }
         prev_t = t;
       } 
@@ -315,9 +349,6 @@ class Commander {
       }
     }
 
-    void wait() {
-      // HAHA do nothing buddy, for now...
-    }
 
     void sim_pub_goal() {
       static ros::Time prev_time = ros::Time::now();
@@ -358,7 +389,7 @@ class Commander {
         if (d % 2 == 0) {
           p.position.z = 1;
           p.position.y = 1;
-          p.position.x = d + .5;
+          p.position.x = 2*d + 1.5;
           float yaw = -1.55;
           tf2::Quaternion q = tf2::Quaternion(0, 0, yaw);  
           p.orientation.x = q.x();
@@ -369,7 +400,7 @@ class Commander {
         else {
           p.position.z = 1;
           p.position.y = -1;
-          p.position.x = d + .5;
+          p.position.x = 2*d + 1.5;
           float yaw = 1.55;
           tf2::Quaternion q = tf2::Quaternion(0, 0, yaw);  
           p.orientation.x = q.x();
@@ -382,65 +413,66 @@ class Commander {
     }
 
 
-    void run() {
-      prev_state = TAKEOFF;
-      state = TAKEOFF;
-      start_time = ros::Time::now();
-      while(ros::ok()) {
-        ros::spinOnce();
-        rate.sleep();
-
-        if (!tfBuffer->canTransform("map", "base_link", ros::Time(0), 0)) { 
-            ROS_WARN("Transform not yet available");
-            continue;
-        }  
-
-    
-        geometry_msgs::TransformStamped transform_stamped = tfBuffer->lookupTransform("map", "base_link", ros::Time(0), ros::Duration(0));
-        curr_pose.pose.orientation = transform_stamped.transform.rotation;
-        curr_pose.pose.position.x = transform_stamped.transform.translation.x;
-        curr_pose.pose.position.y = transform_stamped.transform.translation.y;
-        curr_pose.pose.position.z = transform_stamped.transform.translation.z;
-
-
-
-
-        if (state == TAKEOFF) {
-          takeoff();
-        } else if (state == EXPLORE) {
-          explore();
-        } else if (state == SPRAY) {
-          spray();
-        } else if (state == LAND) {
-          land();
-        } else if (state == GROUNDED) {
-          wait();
-        }
-
-        
-
-        if (state != prev_state) {
-          ROS_INFO("Switching to state: %s", state_names[state]);
-        }
-
-        curr_yaw = clamp(request_yaw, curr_yaw - YAW_STEP, curr_yaw + YAW_STEP);
-
-        tf2::Quaternion q = tf2::Quaternion(0, 0, curr_yaw);  
-        curr_goal.pose.orientation.x = q.x();
-        curr_goal.pose.orientation.y = q.y();
-        curr_goal.pose.orientation.z = q.z();
-        curr_goal.pose.orientation.w = q.w();
-
-
-        tfBuffer->transform(curr_goal, local_curr_goal, "t265_odom_frame");
-        //mavros_pose_pub.publish(local_curr_goal); 
-        sim_pub_goal();
-        prev_state = state;
-         
-      } 
+  void run() {
+    prev_state = TAKEOFF;
+    state = TAKEOFF;
+    start_time = ros::Time::now();
+    while(ros::ok()) {
       ros::spinOnce();
       rate.sleep();
+
+      if (!tfBuffer->canTransform("map", "base_link", ros::Time(0), 0)) { 
+          ROS_WARN("Transform not yet available");
+          continue;
+      }  
+
+  
+      geometry_msgs::TransformStamped transform_stamped = tfBuffer->lookupTransform("map", "base_link", ros::Time(0), ros::Duration(0));
+      curr_pose.pose.orientation = transform_stamped.transform.rotation;
+      curr_pose.pose.position.x = transform_stamped.transform.translation.x;
+      curr_pose.pose.position.y = transform_stamped.transform.translation.y;
+      curr_pose.pose.position.z = transform_stamped.transform.translation.z;
+
+
+
+
+      if (state == TAKEOFF) {
+        takeoff();
+      } else if (state == EXPLORE) {
+        explore();
+      } else if (state == WAIT) {
+        wait();
+      } else if (state == SPRAY) {
+        spray();
+      } else if (state == LAND) {
+        land();
+      } else if (state == GROUNDED) {
+        wait();
+      }
+
+      
+
+      if (state != prev_state) {
+        ROS_INFO("Switching to state: %s", state_names[state]);
+      }
+
+      curr_yaw = clamp(request_yaw, curr_yaw - YAW_STEP, curr_yaw + YAW_STEP);
+
+      tf2::Quaternion q = tf2::Quaternion(0, 0, curr_yaw);  
+      curr_goal.pose.orientation.x = q.x();
+      curr_goal.pose.orientation.y = q.y();
+      curr_goal.pose.orientation.z = q.z();
+      curr_goal.pose.orientation.w = q.w();
+
+
+      tfBuffer->transform(curr_goal, local_curr_goal, "t265_odom_frame");
+      //mavros_pose_pub.publish(local_curr_goal); 
+      sim_pub_goal();
+      simulate_handles();
+      prev_state = state;
+       
     } 
+  } 
 };
 
 
@@ -450,61 +482,4 @@ int main (int argc, char** argv)
     ros::init (argc, argv, "commander");
     Commander commander;
     commander.run();
-    /*
-    ros::init (argc, argv, "commander");
-    ros::NodeHandle nh;
-    mavros_msgs::SetMode offb_set_mode;
-    mavros_msgs::ActuatorControl spray_on;
-    mavros_msgs::ActuatorControl spray_off;
-    ros::Rate rate(10.0);
-    ros::Publisher spray_pub = nh.advertise<mavros_msgs::ActuatorControl>("/mavros/actuator_control", 1); 
-    ros::Publisher mavros_pose_pub = nh.advertise<geometry_msgs::PoseStamped> ("mavros/setpoint_position/local", 10);
-    ros::ServiceClient set_mode_client = nh.serviceClient<mavros_msgs::SetMode> ("mavros/set_mode");
-    geometry_msgs::PoseStamped p;
-    p.pose.position.x = 0;
-    p.pose.position.y = 0;
-    p.pose.position.z = 0;
-    tf2::Quaternion q = tf2::Quaternion(0, 0, 0);  
-    p.pose.orientation.x = q.x();
-    p.pose.orientation.y = q.y();
-    p.pose.orientation.z = q.z();
-    p.pose.orientation.w = q.w();
-
-    ros::ServiceClient sprayer_client = nh.serviceClient<mavros_msgs::CommandLong> ("mavros/cmd/command");
-    mavros_msgs::CommandLong spray_on, spray_off;
-    spray_on.request.command = 187; //MAV_CMD_DO_SET_ACTUATOR 
-    spray_on.request.param1 = -1;
-    spray_on.request.param7 = 1;
-    spray_off.request.command = 187;
-    spray_off.request.param1 = 0; 
-    spray_off.request.param7 = 1;
-    
-    spray_on.group_mix = 3;
-    spray_on.controls[5] = 100000;
-    spray_off.group_mix = 3;
-    spray_off.controls[5] = -100000;
-    
-    ros::Time start_time = ros::Time::now();
-    ros::Time last_request = ros::Time::now();
-    while (ros::ok()) {
-      if (ros::Time::now() - last_request > ros::Duration(1.0)) {
-        ROS_INFO("px4 - switching to OFFBOARD");
-        set_mode_client.call(offb_set_mode); 
-        last_request = ros::Time::now();
-      }
-
-      if (int( (ros::Time::now() - start_time).toSec() / 10.0) % 2 == 0){
-        ROS_INFO("Sprayer On");
-        spray_pub.publish(spray_on);
-        //sprayer_client.call(spray_on);
-      } else {
-        ROS_INFO("Sprayer Off");
-        spray_pub.publish(spray_off);
-        //sprayer_client.call(spray_off);
-      }
-      mavros_pose_pub.publish(p);
-      ros::spinOnce();
-      rate.sleep();
-    }
-    */
 }
