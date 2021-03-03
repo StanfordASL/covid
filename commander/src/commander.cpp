@@ -43,11 +43,10 @@ enum State {
   EXPLORE,
   SPRAY,
   LAND,
-  CRITICAL,
   WAIT
 };
 
-const std::vector<char *> state_names{"GROUNDED", "TAKEOFF", "EXPLORE", "SPRY", "LAND"};
+const std::vector<std::string> state_names{"GROUNDED", "TAKEOFF", "EXPLORE", "SPRY", "LAND", "WAIT"};
 
 template <typename T> T clamp(const T& value, const T& low, const T& high) {
   return value < low ? low : (value > high ? high : value);
@@ -167,31 +166,32 @@ class Commander {
 
     }
 
+    void info(std::string msg) {
+      static std::string prev_msg = "";
+      if (prev_msg != msg) {
+        ROS_INFO(msg.c_str());
+      }
+      prev_msg = msg;
+    }
 
     void explore() {
       static bool triggered = false;
-      static bool triggered_prev = false;
       if (abs(curr_pose.pose.position.y) > CRITICAL_THRESH || 
-          (abs(curr_pose.pose.position.y) < CRITICAL_THRESH && triggered)) {
+          (abs(curr_pose.pose.position.y) >= CRITICAL_THRESH / 2.0 && triggered)) {
         curr_goal.pose.position.y = 0; 
-        if (!triggered_prev) {
-          ROS_INFO("Critical thresh triggered, retreating to center asap");
-        }
+        info("Critical thresh triggered, retreating to center asap");
         triggered = true;
         return;
       }
       if (abs(curr_pose.pose.position.y) < CRITICAL_THRESH / 2.0) {
-        if (triggered_prev) {
-          ROS_INFO("Critical thresh untriggered");
-        }
+        info("Critical thresh untriggered");
         triggered = false;
       }
-      triggered_prev = triggered;
       if (traj.poses.size() > 1) {
         curr_goal.pose = traj.poses[1];
         curr_goal.pose.position.z = TAKEOFF_ALTITUDE + Z_OFFSET - FLOOR_OFFSET;
       } else if (traj.poses.size() == 1) {
-        ROS_INFO("unexpected size 1 traj");
+        info("unexpected size 1 traj");
       } else if (traj.poses.size() == 0 && (ros::Time::now() - explore_start).toSec() > 2.0) {
         state = LAND;
         ROS_WARN("No path, landing");
@@ -228,7 +228,7 @@ class Commander {
             state = next_state;
         }
       } else if (traj.poses.size() == 1) {
-        ROS_INFO("unexpected size 1 traj");
+        info("unexpected size 1 traj");
       } else if (traj.poses.size() == 0 && (ros::Time::now() - explore_start).toSec() > 2.0) {
         state = LAND;
         ROS_WARN("No path, landing");
@@ -248,13 +248,14 @@ class Commander {
         if (traj.poses.size() > 1) {
           curr_goal.pose.position = traj.poses[1].position;
         } else if (traj.poses.size() == 1) {
-          ROS_INFO("unexpected size 1 traj");
+          info("unexpected size 1 traj");
         }
         curr_request.pose = goals.poses[goal_index];
         curr_request_pub.publish(curr_request);
         if (dist_to_handle > 1.2) { 
           curr_goal.pose.position.y = clamp(curr_goal.pose.position.y, -abs(curr_goal.pose.position.y) + .3, abs(curr_goal.pose.position.y) - .3);
           max_h_speed = FAST_H_SPEED;
+          info("Fast speed");
           float diffs[3];
           diffs[0] = abs(goals.poses[goal_index].position.x - curr_pose.pose.position.x);
           diffs[1] = abs(goals.poses[goal_index].position.y - curr_pose.pose.position.y);
@@ -262,6 +263,7 @@ class Commander {
           request_yaw = atan2(diffs[1], diffs[0]);
         } else {
           max_h_speed = SLOW_H_SPEED;
+          info("Slow speed");
           tf2::Quaternion q(goals.poses[goal_index].orientation.x, goals.poses[goal_index].orientation.y, goals.poses[goal_index].orientation.z, goals.poses[goal_index].orientation.w);
           request_yaw = quat_to_yaw(q);
         }
@@ -279,25 +281,24 @@ class Commander {
         static float prev_t = 0;
         float t = (ros::Time::now() - spray_times[goal_index]).toSec();
         if (t < 2.0) {
-          if (prev_t == 0) {
-            ROS_INFO("Waiting to stablalize spraying position");
-          }
+          info("Waiting to stablalize spraying position");
           //wait to start
         } else if (t < 6.0) {
           if (prev_t < 2.2 ) {
-            ROS_INFO("Turning on sprayer");
             spray_pub.publish(spray_on);
           }
+          info("Turning on sprayer");
           //spraying
         } else if (t < 10.0){ 
           max_h_speed = FAST_H_SPEED;
           if (prev_t < 6.2) {
-            ROS_INFO("Turning off sprayer");
             spray_pub.publish(spray_off);
           }
+          info("Turning off sprayer and fast speed");
           curr_goal.pose.position.y = 0;
         } else {
           max_h_speed = SLOW_H_SPEED;
+          info("Slow speed");
           goal_index++;
           state = WAIT;
           next_state = EXPLORE;
@@ -311,7 +312,7 @@ class Commander {
       static ros::Time land_start = ros::Time::now();
       if (px4_state.mode == "OFFBOARD") {
         if (ros::Time::now() - last_request > ros::Duration(1.0)) {
-          ROS_INFO("px4 - switching to AUTO.LAND");
+          info("px4 - switching to AUTO.LAND");
           set_mode_client.call(land_set_mode); 
           last_request = ros::Time::now();
         }
@@ -319,7 +320,7 @@ class Commander {
 
       } else if (px4_state.armed) {
         if (ros::Time::now() - last_request > ros::Duration(1.0)) {
-          ROS_INFO("px4 - disarming");
+          info("px4 - disarming");
           arming_client.call(disarm_cmd);
           last_request = ros::Time::now();
         }
@@ -332,13 +333,13 @@ class Commander {
       curr_goal = takeoff_goal;
       if (px4_state.mode != "OFFBOARD") {
         if (ros::Time::now() - last_request > ros::Duration(1.0)) {
-          ROS_INFO("px4 - switching to OFFBOARD");
+          info("px4 - switching to OFFBOARD");
           set_mode_client.call(offb_set_mode); 
           last_request = ros::Time::now();
         }
       } else if (!px4_state.armed) {
         if (ros::Time::now() - last_request > ros::Duration(1.0)) {
-          ROS_INFO("px4 - arming");
+          info("px4 - arming");
           arming_client.call(arm_cmd);
           last_request = ros::Time::now();
         }
@@ -447,13 +448,11 @@ class Commander {
       } else if (state == LAND) {
         land();
       } else if (state == GROUNDED) {
-        wait();
       }
 
       
-
-      if (state != prev_state) {
-        ROS_INFO("Switching to state: %s", state_names[state]);
+      if (prev_state != state) {
+        info("Switching to state: " + state_names[state]);
       }
 
       curr_yaw = clamp(request_yaw, curr_yaw - YAW_STEP, curr_yaw + YAW_STEP);
